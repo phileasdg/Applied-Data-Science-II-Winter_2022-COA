@@ -1,0 +1,20 @@
+---
+title: "Week 2 - Data Science II"
+author: "Phileas Dazeley-Gaist"
+date: "04/01/2022"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    citation_package: null
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+

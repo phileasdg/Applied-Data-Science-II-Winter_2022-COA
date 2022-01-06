@@ -1,0 +1,75 @@
+---
+title: "R Markdown Homework Template"
+author: "NAME HERE"
+date: "TODAY'S DATE HERE"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+# Load your Libraries 
+
+Always load your libraries in this first section! 
+
+```{r tidy=TRUE}
+library(tidyverse)
+``` 
+
+
+# 1. "PROBLEM NUMBER ONE"
+
+This is a simple homework assignment template. Notice that in the previous line we can create a header for our problem number by using a single "#". The text is then automatically bolded and indented. Below we will create a sublist. This should be used if problems have more than one part.
+
+
+## a. "PROBLEM NUMBER ONE, PART A"
+
+
+## b.
+
+
+## c.
+
+
+## d.
+
+
+## e.
+
+
+# 2. "PROBLEM NUMBER TWO"
+
+Suppose we need to input an R chunk into our homework file. In this case, the following syntax should be used. Note that "'''" signifies we are include chunks of code (We may also tweak the options as necessary).
+
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+#input R code here. Examples:
+#define R list
+x = c(1,2,3,4,5)
+#make plot
+plot(x)
+```
+
+Below the R code, we can provide additional descriptions and/or explain our code more thoroughly.
+
+
+# 3. "AND REPEAT...."
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+#again, we can input our R code here.
+```
+
+
+# Session Info
+
+Always leave this section in so I can see what packages you have loaded to help debug any errors. 
+
+```{r sessionInfo}
+sessionInfo()
+```
+
