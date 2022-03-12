@@ -1,0 +1,288 @@
+---
+title: "Applied Data Science II - Homework 1"
+author: "Phileas Dazeley Gaist"
+date: "10/01/2021"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+**ISLR 2.4: Questions 1, 2, 8, 10**
+
+# Libraries 
+
+```{r tidy=TRUE}
+library(tidyverse)
+library(gridExtra)
+library(PerformanceAnalytics)
+``` 
+
+## 1. ISLR 2.4 - 1
+
+**a)** Better: The estimated f fit will be more accurate to the true f, especially 
+given the large sample size.
+
+**b)** Worse: The estimated f will be less accurate, and the risk of over fitting 
+is much increased due to the small n.
+
+**c)** Better: Nonlinearity in data is better suited to flexible models, and which 
+will produce closer fits to the data. 
+
+**d)** Worse: High variance in error terms indicates the use of an overly flexible 
+method which finds patterns where there are none in the true f, it is a sign of 
+over fitting.
+
+## ISLR 2.4 - 2
+
+**a)** 
+
+Problem type: regression (response (CEO salary) is quantitative). 
+Interest: inference (we are interested in understanding how factors affect the CEO salary) 
+n = 500 (firms), p = 3 (profit, number of employees, industry)
+
+**b)**
+
+Problem type: classification (response (success or failure) is qualitative) 
+Interest: prediction (we are interested in predicting how the factors affect success or failure) 
+n = 20 (similar products that were previously launched), p =  14 (price charged for the product, marketing budget, competition price, and ten other variables.)
+
+**c)**
+
+Problem type: regression (response (% change in the dollar) is quantitative) 
+Interest: prediction (we are interested in predicting % change in the dollar) 
+n = 52 (weeks), p = 3 (% change in the US market,  % change in the British market, and % change in the German market)
+
+## ISLR 2.4 - 8
+
+**a)** 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+college <- read_csv("Homework 1 data/College.csv") # load the data
+```
+
+**b)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+college # view the data
+
+rownames(college) <- college[,1, drop = TRUE] # assign college names to row names
+# NOTE: drop = TRUE must be specified for the code to run, this is not disclosed in the 
+# exercise instructions
+
+# Alternatively, this works too: 
+# rownames(college) <- college$...1
+
+college = college[,-1] # remove original college names column
+
+college # view it again
+```
+
+**c)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# i)
+
+summary(college) # produce a numerical summary of the variables in the data set
+
+# ii) 
+
+# The code suggested by the exercise does not run:
+# https://community.rstudio.com/t/error-in-pairs-function/81983
+
+college$Private <- as.factor(college$Private) # The 'Private' column 
+# needs to be converted to a factor before the pair function
+# will accept it.
+
+pairs(college[,1:10])
+
+# iii)
+
+plot(college$Private, college$Outstate)
+
+# ggplot version (bonus)
+college %>% 
+  ggplot(aes(x = Private, y = Outstate)) +
+  geom_boxplot()
+
+# iv)
+
+Elite <- rep("No", nrow(college))
+Elite[college$Top10perc > 50] <- "Yes"
+Elite <- as.factor(Elite)
+college <- data.frame(college, Elite)
+
+summary(college$Elite)
+
+plot(college$Elite, college$Outstate)
+
+# ggplot version (bonus)
+college %>% 
+  ggplot(aes(x = Elite, y = Outstate)) +
+  geom_boxplot()
+
+# v)
+
+par(mfrow = c(2, 2))
+hist(college$Apps)
+hist(college$Accept)
+hist(college$Enroll)
+hist(college$Top10perc)
+
+# ggplot version (bonus)
+apps_plot <- college %>% ggplot() + geom_histogram(aes(x = Apps))
+accept_plot <- college %>% ggplot() + geom_histogram(aes(x = Accept))
+enroll_plot <- college %>% ggplot() + geom_histogram(aes(x = Enroll))
+top10perc_plot <- college %>% ggplot() + geom_histogram(aes(x = Top10perc))
+
+grid.arrange(apps_plot, accept_plot, enroll_plot, top10perc_plot, ncol = 2, nrow = 2)
+  
+# vi)
+
+# The cost of room & board and the graduation rate exhibit a possible  linear relationship:
+college %>% ggplot(aes(x = Room.Board, y = Grad.Rate)) + geom_point() + geom_smooth(method = "lm")
+
+# The log of Applications and the log of Acceptances exhibit strong linear correlation:
+college %>% ggplot(aes(x = log(Apps), y = log(Accept))) + geom_point() + geom_smooth()
+
+# The acceptance rate of a college appears correlated not quite linearly with the graduation rate:
+college %>% ggplot(aes(x = Accept/Apps, y = Grad.Rate)) + geom_point() + geom_smooth(method = "loess")
+cor.test((college$Accept/college$Apps), college$Grad.Rate, alternative = "two.sided",conf.level = 0.95)
+```
+
+## ISLR 2.4 - 10 
+
+This exercise involves the Boston housing data set.
+
+**a)** 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+library(MASS)
+head(Boston, 5)
+?Boston
+
+dim(Boston)
+# The Boston data set contains 506 rows, and 14 columns. The columns 
+# represent predictor (independent) variables, while the rows represent response 
+# (dependent) variables.
+```
+
+ **b)** 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+chart.Correlation(Boston, histogram = TRUE)
+
+Boston %>% 
+  ggplot(aes(x = age, y = dis)) + geom_point() + geom_smooth(method = "lm")
+cor.test(Boston$age, Boston$dis, alternative = "two.sided",conf.level = 0.95)
+```
+
+- There is a strong positive correlation between the proportion of owner occupied units built prior to 1914 and the nitrogen oxides concentration in parts for 10 million.
+- There is a strong slightly negative correlation between the proportion of owner occupied units built prior to 1914 and the weighted mean of distances to 5 Boston employment centres.
+- There is no correlation between whether a given suburb Borders the Charles River and the per capita crime rate.
+
+**c)**
+
+Yes, for example:
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# There is a strong positive correlation between the Proportion of owner occupied 
+# unit built prior to 1940 and the log per capita crime rate.
+Boston %>% ggplot(aes(age, log(crim))) + geom_point()
+
+# There is a strong negative correlation between the weighted mean of distances 
+# to 5 Boston employment centres and the log per capita  crime rate. 
+Boston %>% ggplot(aes(dis, log(crim))) + geom_point()
+```
+
+**d)**
+
+- Most tracts are reported to have low crime rates, so the distribution on crime rate observations skew towards lower values. However the tail of the distribution is long, indicating the existence of a smaller number of towns with higher crime rates. The mean crime rate for the data set is 3.61, and 128 of the 506 towns represented in the data have crime rates above the mean. (reaching a maximum value of 88.97).
+- There's a great gap between, on the left of the distribution, a majority of towns represented in the data set, where inhabitants pay lower taxes, and towns where inhabitants pay higher taxes on the right of the distribution. And this gap indicates the presence of hidden variables. 
+- There is a slight skew awards higher pupil-teacher ratios by town.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# summaries of the range of distributions and measures of central tendency:
+summary(Boston$crim) 
+summary(Boston$tax) 
+summary(Boston$ptratio)
+
+# numbers of observations above the mean of each distribution
+dim(subset(Boston, crim > 3.61))[1]
+dim(subset(Boston, tax > 408.2))[1]
+dim(subset(Boston, ptratio > 18.46))[1]
+
+# histograms
+ggplot(data = Boston, aes(crim)) + geom_histogram(bins = 20) 
+ggplot(data = Boston, aes(tax)) + geom_histogram(bins = 20)
+ggplot(data = Boston, aes(ptratio)) + geom_histogram(bins = 20)
+```
+
+**e)**
+
+There are 35 tracts that border the Charles River.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# numbers of observations (towns) that border the Charles river:
+dim(subset(Boston, chas == 1))[1]
+```
+
+**f)**
+
+The median pupil-teacher ratio in the data set is 19.05
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# median pupil-teacher ratio in the data set:
+median(Boston$ptratio)
+```
+
+**g)**
+
+There are actually two tracts tied at this minimum value of $5k median value of owner-occupied homes.
+
+Comparisons to the distributions of predictors for the entire dataset are reported in the second table below.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# data frame of summaries of distributions (same formatting as following data frame
+# for ease of reading)
+summaries <- summary(Boston) %>% as.data.frame() %>% dplyr::select(-Var1) %>% 
+  separate(Freq, into = c("Name", "Value"), sep = ":") %>% 
+  pivot_wider(names_from = "Name", values_from = "Value") %>% 
+  mutate_all(as.numeric)
+summaries 
+
+# values of the predictors for the tract with the min median home value:
+Boston %>% filter(medv == min(medv)) %>% t() %>% as.data.frame() %>%
+  mutate("V1 - sample mean" = V1 - summaries$`Mean   `, 
+         "V2 - sample mean" = V2 - summaries$`Mean   `)
+```
+
+**h)**
+
+- 64 census tracts have on average more than 7 rooms per dwelling
+- 13 census tracts have on average more than 8 rooms per dwelling
+
+The census tracts that average more than eight rooms per dwelling have, on average, crim, indus, nox, dis, rad, tax, ptratio, and lstat values under the data set's mean, and values of other independent variables about the data set's mean.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+Boston %>% filter(rm > 7) %>% summarise(">7 rooms" = n())
+Boston %>% filter(rm > 8) %>% summarise(">8 rooms" = n())
+
+# Mean of predictor values for tracts containing >8 rooms on average vs data set
+# sample mean:
+Boston %>% filter(rm > 8) %>% summarise_all(mean) %>% 
+  pivot_longer(everything(), names_to = "Names", values_to = "Values") %>% 
+  mutate("Mean of values for rm>8 == true - sample mean" = Values - summaries$`Mean   `)
+```
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```
+

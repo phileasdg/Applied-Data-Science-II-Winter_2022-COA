@@ -1,0 +1,401 @@
+---
+title: "Week 5 - Data Science II"
+author: "Phileas Dazeley-Gaist"
+date: "01/02/2022"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+Today: Cross validation and resampling methods.
+
+Note: The standard training data to testing data ratio is 70% to 30%.
+Note: The central limit theorem states that the average of averages in a data set tends to be normally distributed.
+
+```{r}
+# Applied Data Science II - Week 5
+# # ---------------------------------------------------------------
+
+# Today we are going to talk about RESAMPLING METHODS! 
+#
+#
+# # ---------------------------------------------------------------
+#
+# Load your libraries! 
+#
+# # ---------------------------------------------------------------
+
+library(ISLR2)
+library(tidyverse)
+library(caret)
+library(palmerpenguins)
+library(class)
+library(nnet)
+library(elasticnet)
+library(boot)
+
+# do these not work? Then you'll have to install them! 
+
+# Uncomment the line below and run this command: 
+# install.packages(c("palmerpenguins","caret", "class","nnet", "boot","elasticnet"))
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# k-fold cross-validations 
+#
+# # ---------------------------------------------------------------
+
+# TLet's start by revisiting our simple penguin model from last week! 
+
+
+attach(penguins)
+
+
+penguins_cleaned <- penguins %>%
+        drop_na() %>% 
+        dplyr::select(species, bill_length_mm) %>% 
+        mutate(adelie = as.factor(ifelse(species == 'Adelie',1,0))) %>%
+        dplyr::select(-species)
+
+
+# Now lets split it into test and train sets!
+train <- sample(1:nrow(penguins_cleaned), nrow(penguins_cleaned) / 2)
+test <- (-train)
+
+# Let's set our "ground truth" labels. 
+truth <- penguins_cleaned$adelie[test]
+```
+
+```{r}
+# Build our model 
+glm_train <- glm(adelie ~ ., family = binomial(link="logit"), data = penguins_cleaned, subset = train)
+
+# And generate predictions on your test data ... 
+glm_preds <- predict(glm_train, penguins_cleaned[test,])
+new_predictions <- rep(0,167)
+new_predictions[glm_preds > 0.5] = 1
+
+# now put them in a table and get our confusion matrix output: 
+xtab = table(new_predictions, truth)
+caret::confusionMatrix(xtab)
+
+# Okay, so as it stands - this model is approximately 56% accurate. 
+# Now, let's try using a 10-fold cross-validation approach. 
+# To do this in a way that is significantly less annoying than the textbook,
+# we're going to use the caret library! So you're going to learn a few new things today!
+```
+
+**Let's try that again with cross validation using caret (Classification and Regressions), and see if it improves our model.** 
+
+```{r}
+# Let's build the model with caret: 
+
+glm_model_with_cv = train(
+        form = adelie ~ .,
+        data = penguins_cleaned,
+        subset = train,
+        trControl = trainControl(method = "cv", number = 10),
+        method = "glm",
+        family = "binomial"
+)
+
+# Let's break this down a little: 
+# glm_model_with_cv = train(                  -- the "train" function is from caret (??caret::train)
+#         form = adelie ~ .,                  -- here, we specify the model form just like normal 
+#         data = penguins_cleaned,            -- specify the dataset, just like normal
+#         subset = train,                     -- specify the subset, just like normal
+#         trControl = trainControl(method = "cv", number = 10), --trControl is a SUPER powerful little function that does the cross-validating for us here! 
+#         method = "glm",                     -- specify the model type like normal
+#         family = "binomial"                 -- specify the model family like normal
+# )
+
+# Let's look at the model object
+
+glm_model_with_cv
+
+# And the summary...
+summary(glm_model_with_cv) # this will report some stuff about the model including the training error
+
+# let's now build our new predictions
+
+even_newer_predictions <- predict(glm_model_with_cv, newdata = penguins_cleaned[test,])
+
+caret::confusionMatrix(table(even_newer_predictions,truth))
+
+# This new model is ~95% more accurate - an improvement of nearly 70%!
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Stop! If you still have your Spotify code from last week, grab that up. 
+#
+# # ---------------------------------------------------------------
+
+# Let's try and improve our Spotify code! 
+
+
+spotify_data <- read_csv("w4 data/spotify_labels.csv")
+
+cleaned_spotify <- spotify_data %>% 
+        dplyr::select(-artist_name,key) %>% 
+        mutate(mode = as.factor(mode),
+               key = as.factor(key),
+               time_signature = as.factor(time_signature),
+               label = as.factor(label),
+               fun = energy * danceability,
+               slowness = valence * tempo * loudness)
+
+
+train <- sample(1:nrow(cleaned_spotify), nrow(cleaned_spotify) / 2)
+test <- (-train)
+
+multi_class_logit <- multinom(label ~ ., data = cleaned_spotify, subset = train)
+logit_pred <- predict(multi_class_logit, newdata=cleaned_spotify[test,], "class")
+```
+
+```{r}
+# And generate predictions on your test data ... 
+logit_table <- table(cleaned_spotify$label[test], logit_pred)
+
+caret::confusionMatrix(logit_table)
+
+# Original accuracy is ~ 67%. 
+# newer accuracy ...
+
+caret_spotify <- train(
+        form = label ~ .,
+        data = cleaned_spotify,
+        subset = train,
+        trControl = trainControl(method = "cv", number = 10),
+        method = "multinom"
+)
+
+new_pred <- predict(caret_spotify, newdata=cleaned_spotify[test,])
+new_table <- table(cleaned_spotify$label[test], new_pred)
+caret::confusionMatrix(table(cleaned_spotify$label[test],new_pred))
+# slight improvements, but not all that much! 
+
+# # ---------------------------------------------------------------
+#
+#  Stop! Go back to the presentation 
+#
+# # ---------------------------------------------------------------
+```
+
+Bootstrapping is resampling with replacement a bunch of times and using the data bins to generate a parameter estimate (mean, median, anything really...)
+
+```{r}
+# # ---------------------------------------------------------------
+#
+#  The Bootstrap! 
+#
+# # ---------------------------------------------------------------
+
+# One of the great advantages of the bootstrap approach is that it can be
+# applied in almost all situations. No complicated mathematical calculations
+# are required. Performing a bootstrap analysis in R entails only two steps.
+# First, we must create a function that computes the statistic of interest.
+# Second, we use the boot() function, which is part of the boot library, 
+# to boot() perform the bootstrap by repeatedly sampling observations from the data
+# set with replacement.
+#
+# Note: one of the main motivations for doing the below exercise is to get you
+# comfortable with the idea of *writing your own functions*! 
+
+# let's right a function that uses the bootstrap to get the 
+# standard error estimates of a linear regresion model!
+
+# write a function! 
+boot.fn <- function(data, index){
+        coef(lm(mpg ~ horsepower, data = data, subset = index))
+}
+
+# This function - called boot.fn - takes two arguments: "data" and "index". 
+# As you can see, what this does is it plugs in whatever you pass into the "data" argument and "index"
+# arguments into a linear regression and records the coefficients. Note that this is
+# also "hard-coded" to only work with the Auto dataset. 
+
+# Run the function once! (Just to try it out)
+boot.fn(Auto, 1:392)
+
+# This is the same as: 
+coef(lm(mpg ~ horsepower, data = Auto))
+
+# Now, let's get bootstrappy! 
+set.seed(1)
+boot.fn(Auto, sample(392, 392, replace = T))
+
+# What did this do? It randomnly sampled - with replacement - from the existing 392 elements. 
+
+# Now we can use the boot function from the boot library (??boot) to do this 1000 times! 
+boot(Auto, boot.fn, 1000)
+
+# Now compare this to the normal standard errors...
+summary(lm(mpg ~ horsepower, data = Auto))$coef
+
+# What do you notice?
+# t1 and t2 are the terms of the regression (intercept, horsepower, in this case)
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+#  Coding Project! 
+#
+# # ---------------------------------------------------------------
+
+# # ---------------------------------------------------------------
+#
+#  Quick lesson - Adding Cross-Validation to Regression (+ learning more Caret stuff!) 
+#
+# # ---------------------------------------------------------------
+
+# For this part, we're going to load in the Diamonds dataset 
+
+data(diamonds)
+
+
+# We're going to build a model that predicts the PRICE of the diamond data. 
+# We're going to use a 70/30 split - that is, we're going to use 70% of the data to train and
+# 30% of the data to split. 
+#
+# ... not sure how to do that easily? No worries, caret got you! 
+
+# Caret has a handy function called "createDataPartition. Check it out. 
+
+diamonds_indx = createDataPartition(diamonds$price, p = 0.70, list = FALSE)
+# This splits the diamonds dataset into a 70%/30% split. 
+diamonds_train = diamonds[diamonds_indx, ]
+diamonds_test = diamonds[-diamonds_indx, ]
+```
+
+```{r}
+# Now, let's build a simple linear regression with caret to see how we'd do it...
+
+diamonds_linear <- train(
+        form = price ~ .,
+        data = diamonds_train,
+        method = "lm"
+)
+
+# what's our training RMSE?
+diamonds_linear
+
+# what's our test RMSE?
+diamonds_linear_prediction <- predict(diamonds_linear,diamonds_test)
+
+# we can use this handy function:
+postResample(pred = diamonds_linear_prediction, obs = diamonds_test$price)
+
+# not bad! 
+
+# ...how would we do a lasso model? pretty simple! 
+# first we setup our values for lambda again (this is our penalty variable)
+lambda <- c(seq(0.1, 2, by =0.1) ,  seq(2, 5, 0.5) , seq(5, 25, 1))
+
+# and let's process our data a bit to make sure that lasso works well on it! 
+
+y_train = diamonds_train$price
+x_train <- model.matrix( ~ .-price, diamonds_train)
+x_test <- model.matrix( ~ . -price, diamonds_test)
+
+lasso<-train(y= y_train,
+             x = x_train,
+             method = 'glmnet', 
+             tuneGrid = expand.grid(alpha = 1, lambda = lambda),
+             trControl = trainControl(method = "cv", number = 10)
+) 
+
+lasso
+
+# what's our test RMSE? (RMSE is the average error in the unit of the thing we are predicting)
+diamonds_lasso_prediction <- predict(lasso,x_test)
+
+# we can use this handy function:
+postResample(pred = diamonds_lasso_prediction, obs = diamonds_test$price)
+
+# slightly better but not by much!
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+#  Your turn! 
+#
+# Check out the file called "abalone.csv" on the Google Drive. This file 
+# is measurement of approximately 4,000 abalone. Your job is to try and predict
+# the abalone's age (measured in rings that are viewed upon shucking) from the
+# variables provided. I want you to make sure you use cross-validation to produce the
+# minimum RMSE that you can. You can use a linear model, lasso model, or a ridge regression
+# (which, if you remember, you can do if you set the "alpha = 0" above). 
+# # ---------------------------------------------------------------
+
+abalone <- read.csv("w5 data/abalone.csv")
+abalone <- as.data.frame(unclass(abalone), 
+                       stringsAsFactors = TRUE)
+head(abalone)
+
+# Caret has a handy function called "createDataPartition. Check it out. 
+
+abalone_indx = createDataPartition(abalone$age_in_rings, p = 0.70, list = FALSE)
+# This splits the diamonds dataset into a 70%/30% split. 
+abalone_train = abalone[abalone_indx, ]
+abalone_test = abalone[-abalone_indx, ]
+```
+
+```{r}
+# Now, let's build a simple linear regression with caret to see how we'd do it...
+
+abalone_linear <- train(
+        form = age_in_rings ~ .,
+        data = abalone_train,
+        method = "lm"
+)
+
+# what's our training RMSE?
+abalone_linear
+
+# what's our test RMSE?
+abalone_linear_prediction <- predict(abalone_linear,abalone_test)
+
+# we can use this handy function:
+postResample(pred = abalone_linear_prediction, obs = abalone_test$age_in_rings)
+
+# not bad!
+```
+
+```{r}
+# ...how would we do a lasso model? pretty simple! 
+# first we set-up our values for lambda again (this is our penalty variable)
+lambda <- c(seq(0.1, 2, by =0.1) ,  seq(2, 5, 0.5) , seq(5, 25, 1))
+
+# and let's process our data a bit to make sure that lasso works well on it! 
+
+y_train = abalone_train$age_in_rings
+x_train <- model.matrix( ~ .-age_in_rings, abalone_train)
+x_test <- model.matrix( ~ . -age_in_rings, abalone_test)
+
+lasso<-train(y= y_train,
+             x = x_train,
+             method = 'glmnet', 
+             tuneGrid = expand.grid(alpha = 1, lambda = lambda),
+             trControl = trainControl(method = "cv", number = 10)
+) 
+
+lasso
+
+# what's our test RMSE? (RMSE is the average error in the unit of the thing we are predicting)
+abalone_lasso_prediction <- predict(lasso,x_test)
+
+# we can use this handy function:
+postResample(pred = abalone_lasso_prediction, obs = abalone_test$age_in_rings)
+```

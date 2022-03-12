@@ -1,0 +1,404 @@
+---
+title: "Week 4 - Data Science II"
+author: "Phileas Dazeley-Gaist"
+date: "25/01/2022"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+Today: Classification models
+
+```{r}
+# Applied Data Science II - Week 3
+# # ---------------------------------------------------------------
+
+# Today we are going to talk about CLASSIFICATION MODELS! 
+#
+#
+# # ---------------------------------------------------------------
+#
+# Load your libraries! 
+#
+# # ---------------------------------------------------------------
+
+library(ISLR2)
+library(tidyverse)
+library(caret)
+library(palmerpenguins)
+library(class)
+library(nnet)
+
+# do these not work? Then you'll have to install them! 
+
+# Uncomment the line below and run this command: 
+# install.packages(c("palmerpenguins","caret", "class","nnet"))
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Logistic Regression
+#
+# # ---------------------------------------------------------------
+
+# The textbook is too dry. Let's have some fun with our own data! 
+# Let's try and build a predictive model of PENGUINS. 
+
+# These data were collected and made available by Dr. Kristen Gorman and the Palmer Station, 
+# Antarctica LTER, a member of the Long Term Ecological Research Network.
+
+# For more information, see here: https://github.com/allisonhorst/palmerpenguins
+
+attach(penguins)
+head(penguins)
+```
+
+```{r}
+# Let's check out some summaries! 
+
+# We've got a good number of different measurements for each class! 
+penguins %>% 
+  count(species)
+
+# Gentoo seems easy enough to classify, but Chinstrap and Adelie are nice and mixed up. 
+penguins %>% 
+  ggplot(aes(x = flipper_length_mm, y = body_mass_g, fill = species, color = species)) + 
+  geom_point() + 
+  theme_bw()
+
+# Okay. Here is our scenario.
+# An awesome COA student has spilled their coffee onto their data notebook while taking the
+# Antarctica monster course. All they have left now are the bill length measurements. 
+# They think they can tell the scribbles of the species between "A"
+# and something that looks like a "c" or a "g" - so we're going to build a model that predicts whether or not a given
+# penguin was actually an Adelie penguin or not! 
+
+penguins_cleaned <- penguins %>%
+  drop_na() %>% 
+  select(species, bill_length_mm) %>% 
+  mutate(adelie = as.factor(ifelse(species == 'Adelie',1,0))) %>%
+  select(-species)
+
+head(penguins_cleaned)
+```
+
+```{r}
+# Let's build a logistic model first, then we'll do some training/testing splits. 
+
+# GLM stands for general linear model
+penguins_glm <- glm(adelie ~ ., family = binomial(link="logit"), data = penguins_cleaned) 
+# family= binomial(link="logit") means: make this a logistic model.
+
+# Okay, let's check the summary! 
+summary(penguins_glm)
+
+# So what's this stuff...
+
+# The coefficients are the same as you remember!
+# Next we see the deviance residuals, which are a measure of model fit. 
+# This part of output shows the distribution of the deviance residuals for individual cases used in the model.
+
+# You don't get an R^2 in this model.
+```
+
+```{r}
+# Let's get an idea of how this model behaved! First, let's get some predicted values 
+
+penguins_probs <- predict(penguins_glm, type = "response") 
+
+# if you're getting stuff in scientific notation - try running this line of code! 
+options(scipen = 999)
+
+penguins_probs
+```
+
+```{r}
+# neat! we've got probabilities. let's convert these to "Adelie" or not by rounding up anything that's over 50%.
+# anything above 50% prob will count as an adelie penguin, anything else will not count as an adelie penguin.
+
+penguins_pred <- rep(0, 333) 
+penguins_pred[penguins_probs > 0.5] = 1
+
+penguins_pred # prediction vector
+
+# now, let's combine this with our old data to see how we did! 
+
+# first, we'll do this the "hard way" like the textbook wants. 
+# Make a vector of the actual data
+truth <- penguins_cleaned$adelie # truth vector (to compare with the prediction vector)
+
+truth
+```
+
+**Confusion matrix:**
+
+- some VERY useful definitions:  
+  1. TPR (True Positive Rate), also called Recall or Sensitivity: TP / (TP + FN)
+  2. FPR (False Positive Rate), also called Fall-Out: FP / (FP + TN) 
+  3.  TNR (True Negative Rate), also called Specificity: TN / (TN + FP)
+  4. PPV (Positive Predicted Value), also called Precision: TP / (TP + FP)
+  5. Prevalence: P / (P + N) 
+  6. Accuracy: (TP + TN) / (P + N)
+
+```{r}
+# now put them in a table! this is the beginnings of a confusion matrix:
+table(penguins_pred, truth)
+
+# some VERY useful definitions:  
+# TPR (True Positive Rate), also called Recall or Sensitivity: TP / (TP + FN)
+# FPR (False Positive Rate), also called Fall-Out: FP / (FP + TN) 
+# TNR (True Negative Rate), also called Specificity: TN / (TN + FP)
+# PPV (Positive Predicted Value), also called Precision: TP / (TP + FP)
+# Prevalence: P / (P + N) 
+# Accuracy: (TP + TN) / (P + N)
+
+accuracy = (137 + 177) / 333
+accuracy
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Stop! Your turn. Calculate accuracy and TPR :) 
+#
+# # ---------------------------------------------------------------
+
+# So remember this is the *training* accuracy - and here is our training error! 
+1 - mean(penguins_pred == truth)
+
+# Let's split into a test and train and do this the proper way! 
+
+# This is the way we talked about in the past to make a 50% even break: 
+train <- sample(1:nrow(penguins_cleaned), nrow(penguins_cleaned) / 2)
+test <- (-train)
+```
+
+```{r}
+# Now run your model again! 
+glm_train <- glm(adelie ~ ., family = binomial(link="logit"), data = penguins_cleaned, subset = train)
+
+# And generate predictions on your test data ... 
+glm_preds <- predict(glm_train, penguins_cleaned[test,], type = "response")
+
+# annnnnnd let's run that accuracy check again! 
+
+new_predictions <- rep(0,333)
+new_predictions[glm_preds > 0.5] = 1
+
+# now put them in a table! this is the beginnings of a confusion matrix:
+xtab = table(new_predictions, truth)
+xtab
+
+# and our accuracy? 
+mean(new_predictions == truth)
+
+# now this is a *lot* more realistic!
+```
+
+```{r}
+# let's cheat and use the caret package to give us ALL SORTS of good information: 
+caret::confusionMatrix(xtab) # requires a table of predicted values and truth values (separate columns)
+
+# # ---------------------------------------------------------------
+#
+# Stop! Let's go back to the presentation! 
+#
+# # ---------------------------------------------------------------
+
+# alright :)
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+#  K-nearest neighbours
+#
+# # ---------------------------------------------------------------
+
+# We will now perform KNN using the knn() function, which is part of the knn()
+# class library. This function works rather differently from the other model fitting 
+# functions that we have encountered thus far. Rather than a two-step
+# approach in which we first fit the model and then we use the model to make
+# predictions, knn() forms predictions using a single command. The function
+# requires four inputs.
+
+#1. A matrix containing the predictors associated with the training data,
+# labeled train.X below.
+
+# 2. A matrix containing the predictors associated with the data for which
+# we wish to make predictions, labeled test.X below.
+
+# 3. A vector containing the class labels for the training observations,
+# labeled train.Direction below.
+
+# 4. A value for K, the number of nearest neighbors to be used by the
+# classifier.
+```
+
+```{r}
+# So let's go back to our penguin data. You are super lucky, you managed to dry the paperwork out
+# and recover one of the other variables - body mass! So we're going to use those two data points to
+# try and predict which species these penguins were 
+
+# new data: 
+
+knn_penguins <- 
+  penguins %>% 
+  drop_na() %>% 
+  select(species, bill_length_mm, body_mass_g)
+
+# new test and control splits
+
+train <- sample(1:nrow(knn_penguins), nrow(knn_penguins) / 2)
+test <- (-train)
+
+# let's make our data for above! 
+
+train.X <- cbind(knn_penguins$bill_length_mm, knn_penguins$body_mass_g)[train,]
+test.X <- cbind(knn_penguins$bill_length_mm, knn_penguins$body_mass_g)[test,]
+train.species <- knn_penguins$species[train]
+# we'll also go ahead and make a test.species, "ground truth", vector 
+test.species <- knn_penguins$species[test]
+k <- 3 # this is arbitrary, we should try for different values
+```
+
+```{r}
+# okay, let's make our model! 
+
+set.seed (1)
+knn.pred <- knn(train.X, test.X, train.species , k = k)
+
+# what does this model object look like?
+
+knn.pred
+summary(knn.pred)
+
+# how'd we do? 
+knn_table <- table(knn.pred, test.species)
+knn_table
+
+# what's the accuracy? 
+
+mean(knn.pred == test.species)
+
+# not too bad!
+```
+
+
+```{r}
+# why don't we compare this SAME task to a logistic regression? 
+
+# THIS IS A MULTINOMIAL LOGISTIC REGRESSION.
+
+# to make this easier, we're going to load a new package! 
+library(nnet)
+
+# and from this package, we're gonna use a fancy new function called "multinom"
+multi_class_logit <- multinom(species ~ ., data = knn_penguins, subset = train)
+logit_pred <- predict(multi_class_logit, newdata=knn_penguins[test,], "class")
+
+# Let's make a table!
+
+logit_table <- table(knn_penguins$species[test], logit_pred)
+logit_table
+
+# So the logit model is actually much better! 
+mean(logit_pred == knn_penguins$species[test])
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+#  Coding Project! 
+#
+# # ---------------------------------------------------------------
+
+# Check the Google Drive. I've created a file called spotify_labels.csv. Download it. 
+# This contains a dataset (13795 x 15) of songs from Spotify that are labeled as one of four genres: 
+# hip hop, indie, metal, or pop. 
+# Your job is to use some of the proprietary "scores" from Spotify to see if you can build a model
+# that accurately guesses the right label! Try out any approach you want from today (knn or logistic) 
+# and feel free to manipulate the variables as much as you want to generate a more accurate model. 
+
+spotify <- read_csv("w4 data/spotify_labels.csv")
+head(spotify)
+colnames(spotify)
+```
+
+```{r}
+# new data: 
+
+spotify <- 
+  spotify %>% 
+  drop_na() %>% 
+  select(-artist_name) %>% 
+  mutate(mode = as.factor(mode),
+         key = as.factor(key),
+         time_signature = as.factor(time_signature))
+
+# new test and control splits (index values)
+
+train <- sample(1:nrow(spotify), nrow(spotify) / 2)
+test <- (-train)
+```
+
+```{r}
+# let's make our data for above! 
+
+# to make sense in a 2d plot, you need to make you knn use two variables, so you 
+# can take two variables, or pca the data set and do knn on two principal components. 
+
+train.X <- cbind(spotify$danceability, spotify$speechiness, spotify$valence, spotify$loudness)[train,]
+test.X <- cbind(spotify$danceability, spotify$speechiness, spotify$valence, spotify$loudness)[test,]
+
+train.labels <- spotify$label[train]
+
+# we'll also go ahead and make a test.species, "ground truth", vector
+test.labels <- spotify$label[test]
+k <- 3 # this is arbitrary, we should try for different values
+
+# okay, let's make our model!
+
+set.seed (1)
+knn.pred <- knn(train.X, test.X, train.labels , k = k)
+
+# what does this model object look like?
+
+knn.pred
+summary(knn.pred)
+
+# how'd we do?
+knn_table <- table(knn.pred, test.labels)
+knn_table
+
+# what's the accuracy?
+
+mean(knn.pred == test.labels)
+
+# not too bad!
+
+# why don't we compare this SAME task to a logistic regression?
+```
+
+```{r}
+# Multivariate logistic regression
+
+# and from this package, we're gonna use a fancy new function called "multinom"
+multi_class_logit <- multinom(label ~ ., data = spotify, subset = train)
+logit_pred <- predict(multi_class_logit, newdata=spotify[test,], "class")
+
+# Let's make a table!
+
+logit_table <- table(spotify$label[test], logit_pred)
+logit_table
+
+# So the logit model is actually much better! 
+mean(logit_pred == spotify$label[test])
+```

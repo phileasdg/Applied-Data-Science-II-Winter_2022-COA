@@ -1,0 +1,443 @@
+---
+title: "Applied Data Science II - Homework 2"
+author: "Phileas Dazeley Gaist"
+date: "16/01/2021"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+**ISLR 2.4: Questions 1, 2, 8, 10**
+
+# Libraries 
+
+```{r tidy=TRUE}
+library(tidyverse)
+library(ISLR2)
+``` 
+
+## 1. ISLR 3.7 - 8
+
+**a)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+auto <- read_csv("Homework 2 data/Auto.csv") # load the data
+auto$horsepower <- as.numeric(auto$horsepower) # auto$horsepower is registered as
+# a character variable, this must be changed before running the linear regression
+# in order to get correct results.
+auto <- auto %>% drop_na() # required for regression and cor() later in exercise
+
+lm_fit = lm(data = auto, mpg ~ horsepower)
+summary(lm_fit)
+```
+
+**i** 
+
+Yes, there is a significant relationship between horsepower and mpg. Since the F-statistic $F > 1$ and the p-value of the F-statistic $p<0.001$, we can reject the null hypothesis.
+
+**ii**
+
+With an $R^2 = 0.6049$ for our linear regression, we know that $60.49%$ of the variance in mpg is explained by the horsepower variable.
+
+**iii**
+
+The relationship is negative: For higher values of horsepower, we expect lower values of mpg.
+
+**iv**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+predict(lm_fit, data.frame(horsepower=c(98)), interval="confidence")
+predict(lm_fit, data.frame(horsepower=c(98)), interval="prediction")
+```
+
+**b)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# plot
+plot(auto$horsepower, auto$mpg)
+abline(lm_fit)
+
+# alternative ggplot version
+auto %>% ggplot(aes(as.numeric(horsepower), mpg)) + geom_point() + geom_smooth(method='lm', formula= y~x)
+```
+
+**c)**
+
+The residuals vs fitted plot indicates some nonlinearity. The scale-location plot indicates heteroscedasticity.  
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# diagnostics plots
+par(mfrow=c(2,2))
+plot(lm_fit)
+```
+
+## 1. ISLR 3.7 - 9
+
+**a)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+plot(auto)
+```
+
+**b)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+cor(subset(auto, select=-name))
+```
+
+**c)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+lm_fit_multiple <- lm(mpg ~ . -name, data = auto)
+summary(lm_fit_multiple)
+```
+
+**i**
+
+There is a relationship between the predictors and the response. We reject the null hypothesis: $F = 252.4$, $p < 0.001$
+
+**ii**
+
+Displacement, weight, year, and origin were statistically significantly related to the response variable mpg.
+
+**iii**
+
+The coefficient of regression for the year variable shows that every year, the mpg variable increases by an average of 0.750773.
+
+**d)**
+
+Linearity and assumption of normality seem to hold, as well as homoscedasticity. The residuals vs leverage plots indicates that point 14 might be worth looking at further as an outlier in the data, which could bear influence on the regression. 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+par(mfrow=c(2,2))
+plot(lm_fit_multiple)
+```
+
+**e)**
+
+I could have checked the correlation matrix to decide on which variables to use as interaction terms, but I decided to just pick two variables which I imagined would have an interaction instead.
+
+There is a significant interaction between the acceleration and weight variables.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+summary(lm(mpg ~ weight * acceleration, data = auto)) # there is a significant interaction between weight and acceleration
+summary(lm(mpg ~ weight : acceleration, data = auto)) # checking the interaction by itself
+```
+
+**f)**
+
+I messed around completely at random and everything is still significantly related to everything else. Perhaps a sign of autocorrelated variables in the data set? Although the assumptions of linear regression are not met. There is indication of nonlinearity in the residuals vs fitted plot, evidence of outliers in the residuals vs leverage plot, and evidence of heteroscedasticity in the scale-location plot.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+summary(lm(data = auto, mpg~log(year)+sqrt(acceleration)+I(horsepower^2)))
+auto %>% ggplot(aes(mpg, log(year)+sqrt(acceleration)+I(horsepower^2))) + geom_point() + geom_smooth(method = "lm")
+par(mfrow=c(2,2))
+plot(lm(data = auto, mpg~log(year)+sqrt(acceleration)+I(horsepower^2)))
+```
+
+## 2. ISLR 3.7 - 10
+
+**a)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+head(Carseats)
+lm_fit <- lm(data = Carseats, Sales~Price+Urban+US)
+summary(lm_fit)
+```
+
+**b)**
+
+- Price: The regression reports a statistically significant negative relationship between Price and Pales ($p < 0.001$). For every unit Price increase, Sales decrease by approximately 0.05.
+- UrbanYes: There is no relationship between UrbanYes and Sales ($p > 0.05$). 
+- USYes: There is a statistically significant positive relationship between USYes and Sales ($p < 0.001$). 
+
+**c)**
+
+$Sales = coef_1 \cdot Intercept + coef_2 \cdot coefPrice + coef_3 \cdot UrbanYes + coef_4 \cdot USYes$
+$Sales=13.043469-0.054459xPrice-0.02191xUrban+1.200573xUS$
+
+**d)**
+
+We can reject the null hypothesis $H_0$ for the Price and US variables.
+
+**e)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+lm_fit_2 <- lm(data = Carseats, Sales ~ Price + US)
+summary(lm_fit_2)
+```
+
+**f)**
+
+- a model $R^2 = 0.2335$
+- e model $R^2 = 0.2354$
+
+The e model is slightly better than the a model. 
+
+**g)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+confint(lm_fit_2) # defaults to 95% 
+```
+
+**h)**
+
+The residuals vs leverage plot indicates the presence of some outliers, including the presence of points of leverage which merit further investigation.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+par(mfrow = c(2, 2))
+plot(lm_fit_2)
+```
+
+## 3. ISLR 3.7 - 11
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+set.seed(1)
+x <- rnorm(100)
+y <- 2 * x + rnorm(100)
+```
+
+**a)**
+
+- The coefficient estimate $\widehat{\beta} = 1.9939$ 
+- Standard error $= 0.1065$
+- t-statistic $= 18.73$
+- $p < 0.001$
+
+We reject $H_0: \beta = 0$
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+summary(lm(y~x+0))
+```
+
+**b)**
+
+- The coefficient estimate $\widehat{\beta} = 0.39111$ 
+- Standard error $= 0.02089$
+- t-statistic $= 18.73$
+- $p < 0.001$
+
+We reject $H_0: \beta = 0$
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+summary(lm(x ~ y + 0))
+```
+
+**c)**
+
+We get the same t statistic and p-value, which in both cases allows us to reject $H_0$. This makes sense because we are performing the same regression both times. The equations for both regression lines are equal. 
+
+## 1. ISLR 3.7 - 13
+
+**a)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+set.seed(1)
+x <- rnorm(100)
+```
+
+**b)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+eps <- rnorm(100, sd = sqrt(0.25))# (standard deviation is the square root of variance)
+```
+
+**c)**
+
+length(y) = 100 (same as x)
+$\beta_0 = -1$
+$\beta_1 = 0.5$
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+y = -1 + 0.5*x + eps
+```
+
+**d)**
+
+The scatter plot indicates a positive linear relationship between x and y (which we know exists since we made up the data). The variance corresponds to the variance introduced using the eps variable.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# plot(x, y)
+tibble(x, y) %>% ggplot(aes(x, y)) + geom_point()
+```
+
+**e)** The estimated intercept and slope $\widehat{\beta}_0$ and $\widehat{\beta}_1$ are very close to $\beta_0$ and $\beta_1$ (consistent with the way we generated the data to be linearly related, and introduced noise). With a F-statistic $= 132.1$ and $p < 0.001$, we reject $H_0$
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+original <- lm(y~x)
+summary(original)
+```
+
+**f)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+plot(x, y)
+abline(original, col = "seagreen")
+abline(-1, 0.5, col = "coral")
+legend("bottomright", c("Least squares", "Population regression"), 
+       col = c("seagreen", "coral"), lty = c(1, 1))
+
+# ggplot version (commented out because I'm a little lost how I would add the 
+# legend given that it's not about data included in the data frame directly, but 
+# about the plotted lines; I would love some tips on this!)
+
+# tibble(x, y) %>% ggplot(aes(x, y)) + 
+#   geom_point() + 
+#   geom_smooth(method = "lm", colour = "seagreen") + 
+#   geom_abline(intercept = -1, slope = 0.5, colour = "coral")
+```
+
+**g)**
+
+There is no evidence that the quadratic term improves the model fit, as the coefficient for the $x^2$ term is not statistically significant. 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+summary(lm(y ~ x + I(x^2)))
+```
+
+**h)**
+
+By decreasing the noise in the y variable with a reduced variance of eps (resulting in a decreased error term $\epsilon$), the same model achieves a better fit. $R^2$ is higher, RSE is lower. The population regression and least squares line are now much closer, and almost overlap.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+set.seed(1)
+eps <- rnorm(100, sd = 0.1)
+x <- rnorm(100)
+y <- -1 + 0.5 * x + eps
+
+# plot(x, y)
+tibble(x, y) %>% ggplot(aes(x, y)) + geom_point()
+
+quiet <- lm(y ~ x)
+summary(quiet)
+
+plot(x, y)
+abline(quiet, col = "seagreen")
+abline(-1, 0.5, col = "coral")
+legend("bottomright", c("Least squares", "Population regression"), 
+       col = c("seagreen", "coral"), lty = c(1, 1))
+```
+
+**i)**
+
+By increasing the noise in the y variable with an increased variance of eps (resulting in an increased error term $\epsilon$), the same model achieves a worse fit. $R^2$ is lower, RSE is higher The population regression and least squares line now differ more, but are similar enough that we still reject $H_0$.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+set.seed(1)
+eps <- rnorm(100, sd = 2)
+x <- rnorm(100)
+y <- -1 + 0.5 * x + eps
+
+# plot(x, y)
+tibble(x, y) %>% ggplot(aes(x, y)) + geom_point()
+
+noisy <- lm(y ~ x)
+summary(noisy)
+
+plot(x, y)
+abline(noisy, col = "seagreen")
+abline(-1, 0.5, col = "coral")
+legend("bottomright", c("Least squares", "Population regression"), 
+       col = c("seagreen", "coral"), lty = c(1, 1))
+```
+
+**j)**
+
+As the noise in the data increases, so do the confidence intervals (they widen), as the noise decreases, the confidence interval constricts.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+confint(original); confint(quiet); confint(noisy)
+```
+
+## 4. ISLR 3.7 - 14
+
+**a)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+set.seed(1)
+x1 <- runif(100)
+x2 <- 0.5 * x1 + rnorm(100)/10
+y <- 2 + 2 * x1 + 0.3 * x2 + rnorm(100)
+```
+
+**b)**
+
+There is a positive correlation between x1 and x2, $r = 0.8351212$.
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+cor(x1, x2)
+tibble(x1, x2) %>% ggplot(aes(x1, x2)) + geom_point()
+```
+
+**c)** 
+
+- $\widehat{\beta}_0$ is close to the true $\beta_0$
+- $\widehat{\beta}_1$ is (less) close to the true $\beta_1$
+- $\widehat{\beta}_2$ is not close to the true $\beta_2$
+
+We reject $H_0 : \widehat{\beta}_1 = 0$ ($p < 0.05$), but cannot reject $H_0 : \widehat{\beta}_2 = 0$ ($p > 0.05$).
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+lm_fit = lm(y~x1+x2)
+summary(lm_fit)
+```
+
+**d)**
+
+- $\widehat{\beta}_0$ is very close to the true $\beta_0$
+- $\widehat{\beta}_1$ is very close to the true $\beta_1$
+
+We reject $H_0 : \widehat{\beta}_1 = 0$ ($p < 0.05$).
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+lm_fit = lm(y~x1)
+summary(lm_fit)
+```
+
+**e)** 
+
+- $\widehat{\beta}_0$ is very close to the true $\beta_0$
+- $\widehat{\beta}_1$ is very close to the true $\beta_1$
+
+We reject $H_0 : \widehat{\beta}_1 = 0$ ($p < 0.05$).
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+lm_fit = lm(y~x2)
+summary(lm_fit)
+```
+
+**f)** No, the results obtained in c to e do not contradict each other. The cause for the discrepancies is that x1 and x2 are strongly correlated, resulting in collinearity between the variables, which makes it harder for the model to tell how either predictor affects the response variable. This causes the model to return less accurate regression coefficients, resulting in higher standard error.
+
+**g)**
+
+- Model 1: the mismeasured point has high leverage.
+- Model 2: the mismeasured point is an outlier, but does not have high leverage.
+- Model 3: the mismeasured point has high leverage. 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+x1 <- c(x1, 0.1) 
+x2 <- c(x2, 0.8) 
+y <- c(y, 6)
+
+summary(lm(y ~ x1 + x2)) # model 1
+summary(lm(y ~ x1)) # model 2
+summary(lm(y ~ x2)) # model 3
+
+par(mfrow=c(2,2))
+plot(lm(y ~ x1 + x2)) # m1
+plot(lm(y ~ x1)) # m2
+plot(lm(y ~ x2)) # m3
+```
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```
+

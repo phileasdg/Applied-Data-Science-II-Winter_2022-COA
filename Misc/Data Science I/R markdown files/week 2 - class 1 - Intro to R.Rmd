@@ -1,0 +1,291 @@
+---
+title: "week 2 - class 1 - Intro to R"
+author: "Phileas Dazeley Gaist"
+date: "9/21/2021"
+output: 
+  html_document:
+    keep_md: true
+---
+
+```{r}
+# # ---------------------------------------------------------------
+# ┏━━━┓╋╋┏┓┏┓╋╋╋╋╋╋╋╋╋╋╋╋╋╋┏━┓╋┏┓┏┓╋╋╋╋╋┏━━━┓┏┓┏┓╋╋╋╋╋╋┏┓
+# ┃┏━┓┃╋╋┃┃┃┃╋╋╋╋╋╋╋╋╋╋╋╋╋╋┃┏┛┏┛┗┫┃╋╋╋╋╋┃┏━┓┣┛┗┫┃╋╋╋╋╋┏┛┗┓
+# ┃┃╋┗╋━━┫┃┃┃┏━━┳━━┳━━┓┏━━┳┛┗┓┗┓┏┫┗━┳━━┓┃┃╋┃┣┓┏┫┃┏━━┳━╋┓┏╋┳━━┓
+# ┃┃╋┏┫┏┓┃┃┃┃┃┃━┫┏┓┃┃━┫┃┏┓┣┓┏┛╋┃┃┃┏┓┃┃━┫┃┗━┛┃┃┃┃┃┃┏┓┃┏┓┫┃┣┫┏━┛
+# ┃┗━┛┃┗┛┃┗┫┗┫┃━┫┗┛┃┃━┫┃┗┛┃┃┃╋╋┃┗┫┃┃┃┃━┫┃┏━┓┃┃┗┫┗┫┏┓┃┃┃┃┗┫┃┗━┓
+# ┗━━━┻━━┻━┻━┻━━┻━┓┣━━┛┗━━┛┗┛╋╋┗━┻┛┗┻━━┛┗┛╋┗┛┗━┻━┻┛┗┻┛┗┻━┻┻━━┛
+# ╋╋╋╋╋╋╋╋╋╋╋╋╋╋┏━┛┃
+# ╋╋╋╋╋╋╋╋╋╋╋╋╋╋┗━━┛       Applied Data Science I - Week 2, Class 1
+# # ---------------------------------------------------------------
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# # ---------------------------------------------------------------
+# Let's Practice Arithmetic 
+# # ---------------------------------------------------------------
+
+10 + 10 
+2 - 1 
+3 * 6 
+2 / 7
+2 ^ 5 
+2 ** 5 
+5 %% 2 
+2 %/% 7 
+
+1 / 1
+1 / 0 # returns infinity instead of undefined
+0 / 0 # returns NaN (not a number)
+
+# All of the basic arithmetic operators 
+# +	addition
+# -	subtraction
+# *	multiplication
+# /	division
+# ^ or **	exponentiation
+# x %% y	modulus (x mod y) 5%%2 is 1
+# x %/% y	integer division 5%/%2 is 2
+
+# R uses a specific order of operations - BEDMAS (Brackets, Exponents, Division/Multiplication, Addition/Subtraction)
+```
+
+```{r}
+# # ---------------------------------------------------------------
+# Let's learn a couple of useful mathematical functions! 
+# # ---------------------------------------------------------------
+
+# Finds the sum of numbers or a series of numbers!
+sum(2,3)
+
+# Finds the absolute value of a number or series of numbers
+abs(-15)
+
+# Take the log! (the default base is 10, the natural logarithm)
+log(10)
+
+# ...make sure you know which base you're working on!
+log(x = 10, base = 10)
+
+?log # any time you don't know how something works, this prompt takes you to the help doc for this function.
+
+# Same as above
+log(10,10)
+
+# Finds the exponential of a function
+exp(2.3)
+
+?exp
+
+# Find the square root of a number!
+sqrt(9)
+
+# Generate a sequence of numbers with : 
+
+1:30
+
+# Mix and match!
+
+log(1:30, base = 2) # returns the log of every whole number between 1 and 30
+sqrt(sum(log(1:30), base = 2)) # returns the square root of the sum of the logarithms of every whole number between 1 and 30
+```
+
+```{r}
+# # ---------------------------------------------------------------
+# Let's Talk about Logic! 
+# # ---------------------------------------------------------------
+
+3 < 4 
+5 <= 6
+4 > 12 
+3 >= 3
+2 == 1 # are these things the same? evaluation operator
+2 == 2 
+# 2 = 2 # returns an error because it is an assignment operator
+2 != 4
+2+1i - 3+0i # complex and imaginary numbers
+
+# All of the basic logic operators 
+# <	less than
+# <=	less than or equal to
+# >	greater than
+# >=	greater than or equal to
+# ==	exactly equal to
+# !=	not equal to
+# !x	Not x
+#
+# ... we'll talk more about these ones later
+# x | y	x OR y
+# x & y	x AND y
+# isTRUE(x)	test if X is TRUE
+```
+
+```{r}
+# # ---------------------------------------------------------------
+# Let's Make Some ~v a r i a b l e s~
+# # ---------------------------------------------------------------
+
+# Why you shouldn't use the equals "=" sign in R, and you should instead use the "<-" sign: equals signs will work, but it's good practice not to use them in variable assignments, because the equals sign is always used in functions declarations.
+
+# When you create a variable, it is recorded in your environment
+
+my_age <- 35
+philou_age <- 22
+# This is a variable - which is also a vector of length one! 
+my_age 
+my_kids_ages <- c(4,7) # this is a vector, a container of objects that are all the same type. 
+
+# This is a vector - of length two!
+my_kids_ages
+
+?c
+
+c("Willa","Gideon") -> my_kids_names
+my_kids_names
+str(my_kids_names) # returns the structure of the object, in this case, a character class - [chr] - vector of length 2 - [1:2].
+
+my_age * my_kids_ages
+my_age + my_kids_ages
+
+my_age^2
+
+# my_kids_names + my_kids_ages # this doesn't work because its asking to combine vectors of different types.
+
+# you can combine vectors of different types into a dataframe:
+# Create the data frame.
+df <- data.frame(
+   Age = my_kids_ages, 
+   Names = my_kids_names
+)
+
+# to delete variables, you can do the following
+rm(philou_age)
+```
+
+```{r}
+# # ---------------------------------------------------------------
+# Let's Talk about basic data types 
+# # ---------------------------------------------------------------
+
+# Numeric: Numbers that have a decimal value or are a fraction in nature have a data type as numeric.
+class(my_age)
+
+class(my_kids_ages)
+
+# Character: As the name suggests, it can be a letter or a combination of letters enclosed by quotes is considered as a character data type by R. It can be alphabets or numbers. 
+class(my_kids_names)
+
+# Integer: Integer: Numbers that do not contain decimal values have a data type as an integer. However, to create an integer data type, you explicitly use as.integer() and pass the variable as an argument.
+class(as.integer(my_age)) # coerces the variable to be an integer
+class(35L) # declares the variable to be an explicit integer. 
+# Why L? Because it's 32 bits in length (so it's "long"). Also because i and l are too similar looking! 
+
+# Logical: A variable that can have a value of True and False like a boolean is called a logical variable. 
+
+my_age == 35
+class(my_age == 35)
+class(my_age == 25)
+
+# Factor: They are a data type that is used to refer to a qualitative relationship like colors, good & bad, course or movie ratings, etc. They are useful in statistical modeling.
+
+example <- factor(c("good", "bad", "ugly","good", "bad", "ugly"))
+print(example)
+class(example)
+levels(example)
+nlevels(example)
+class(levels(example))
+
+# Lists: These are a data type that is a collection of ... variables that basically don't have to be related to one another. Lists can be confusing, but powerful. 
+
+kyle <- list(age = 35,
+             nerd = TRUE,
+             children = c("Willa","Gideon") 
+)
+kyle
+class(kyle) 
+kyle$age # returns the age section of the kyle list
+class(kyle$age) # returns the class of the elements inside the list
+
+# Data Frames: The real workhorses of R!
+
+age <- c(17, 19, 21, 37, 18, 19, 47, 18, 19)
+score <- c(12, 10, 11, 15, 16, 14, 25, 21, 29)
+class_results <- data.frame(age,score) 
+class_results
+str(class_results)
+
+class_results$age
+names(class_results)
+```
+
+
+```{r}
+# # ---------------------------------------------------------------
+# Let's Talk about coercion 
+# # ---------------------------------------------------------------
+
+# my_kids_names + my_kids_ages # this doesn't work because its asking to combine vectors of different types.
+
+# you can still put different vectors together, but R will implicitly coerce them into being the same type
+my_kids <- c(my_kids_names,my_kids_ages)
+# This is *implicit* coercion! (the numbers get coerced into being character)
+str(my_kids)
+my_kids
+
+my_kids <- data.frame(names = my_kids_names, ages = my_kids_ages)
+my_kids
+str(my_kids)
+
+# What is *explicit* coercion? When you explicitly want to force data to be read as a specific data type.
+
+number_list <- 0:6
+number_list
+(as.logical(number_list))
+```
+
+```{r}
+# # ---------------------------------------------------------------
+# Let's go back to data frames and such ... 
+# # ---------------------------------------------------------------
+
+class_results
+
+new_kid <- c(NA,22) # create a new observation to add to the data frame (NA class means that there is nothing there)
+
+class_results <- rbind(class_results, new_kid) # example rbind
+
+# rbind = binding rows, attaching rows to a dataframe
+# cbind = binding columns, attaching columns to a dataframe
+
+class_results
+
+is.na(class_results) # checks a data set for missing data (works well for small data sets)
+
+sum(is.na(class_results)) # find the number of NAs in dataframe
+complete.cases(class_results) # look across dataframes and see which rows aren't filled (works well for checking missing data in large dataframes)
+sum(!complete.cases(class_results)) # finds the number of incomplete rows in dataframe
+sum(complete.cases(class_results)) # finds the number of complete rows in dataframe
+```
+
+```{r}
+# # ---------------------------------------------------------------
+# Function declarations ... 
+# # ---------------------------------------------------------------
+
+summation <- function(vector){
+  sum_total <- 0 
+  for (i in series) {
+     sum_total <- sum_total + i
+  }
+  return(sum_total)
+}
+
+series <- c(1:10)
+
+summation(vector = series)
+```
+

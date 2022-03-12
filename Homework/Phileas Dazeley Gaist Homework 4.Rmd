@@ -1,0 +1,156 @@
+---
+title: "Applied Data Science II - Homework 4"
+author: "Phileas Dazeley Gaist"
+date: "30/01/2021"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+# Libraries 
+
+```{r tidy=TRUE}
+library(tidyverse)
+library(MASS)
+library(nnet)
+library(caret)
+library(glmnet)
+``` 
+
+# Instructions
+
+Build the most accurate model that you can to predict whether a given individual makes over $50k a year.
+
+# Setup
+
+```{r}
+income_eval <- read.csv("Homework 4 data/income_evaluation.csv")
+
+# remove na values and ? values
+idx <- income_eval == " ?" # find ? elements
+is.na(income_eval) <- idx # replace elements with NA
+rm(idx) # delete the index variable
+income_eval <- na.omit(income_eval) # omit NA rows
+
+# Convert all char columns to factors
+income_eval <- as.data.frame(unclass(income_eval), 
+                       stringsAsFactors = TRUE)
+
+# since education and education.num seem to contain the same information, I will 
+# drop education.num.
+income_eval <- income_eval %>% dplyr::select(-c(education.num))
+
+#Preview the data
+head(income_eval)
+```
+# Exercise
+
+**Preparing the data:**
+
+```{r}
+set.seed(1)
+
+# split the dataset into training and testing sets
+training_samples <- income_eval$income %>% 
+  createDataPartition(p = 0.5, list = FALSE)
+train_data  <- income_eval[training_samples, ]
+test_data <- income_eval[-training_samples, ]
+
+# check it worked properly
+dim(train_data); dim(test_data)
+```
+
+**Visualising the data**
+
+```{r}
+income_eval %>% ggplot(aes(age, fill = income)) + geom_boxplot()
+income_eval %>% ggplot(aes(workclass, fill = income)) + geom_bar(position = "fill")
+income_eval %>% ggplot(aes(log(fnlwgt), fill = income)) + geom_boxplot() # log
+income_eval %>% ggplot(aes(education, fill = income)) + geom_bar(position = "fill")
+income_eval %>% ggplot(aes(marital.status, fill = income)) + geom_bar(position = "fill") 
+income_eval %>% ggplot(aes(occupation, fill = income)) + geom_bar(position = "fill")
+income_eval %>% ggplot(aes(relationship, fill = income)) + geom_bar(position = "fill")
+income_eval %>% ggplot(aes(race, fill = income)) + geom_bar(position = "fill")
+income_eval %>% ggplot(aes(sex, fill = income)) + geom_bar(position = "fill")
+income_eval %>% ggplot(aes(log(capital.gain), fill = income)) + geom_boxplot() # log
+income_eval %>% ggplot(aes(log(capital.loss), fill = income)) + geom_boxplot() # log
+```
+
+**Selecting a model**
+
+(Using an approach suggested at: http://www.sthda.com/english/articles/36-classification-methods-essentials/150-stepwise-logistic-regression-essentials-in-r/#loading-required-r-packages)
+
+```{r}
+set.seed(1)
+
+# Fit a logistic model
+full_logit <- glm(income ~., data = train_data, family = binomial(link="logit"))
+# summary(full_logit)
+
+# Make predictions for the full model
+full_logit_pred <- predict(full_logit, newdata=test_data, "response")
+full_logit_predicted_classes <- as.factor(ifelse(full_logit_pred > 0.5, " >50K", " <=50K"))
+
+# Let's make a table
+full_logit_table <- table(test_data$income, full_logit_predicted_classes)
+caret::confusionMatrix(full_logit_table)
+```
+
+```{r}
+set.seed(1)
+
+# Let's do some stepwise variable selection to see if it'll improve our model fit
+step_model <- full_logit %>% stepAIC(trace = FALSE)
+# summary(step_model)
+
+# Make predictions for the full model
+stepwise_logit_pred <- predict(step_model, newdata=test_data, "response")
+stepwise_logit_predicted_classes <- as.factor(ifelse(stepwise_logit_pred > 0.5, " >50K", " <=50K"))
+
+# Let's make a table
+stepwise_logit_table <- table(test_data$income, stepwise_logit_predicted_classes)
+caret::confusionMatrix(stepwise_logit_table)
+```
+
+One more attempt: (Using an approach found at: http://www.sthda.com/english/articles/36-classification-methods-essentials/149-penalized-logistic-regression-essentials-in-r-ridge-lasso-and-elastic-net/#quick-start-r-code)
+
+```{r}
+set.seed(1)
+
+# Dummy code categorical predictor variables
+x <- model.matrix(income~., train_data)[,-1]
+# Convert the outcome (class) to a numerical variable
+y <- ifelse(train_data$income == " >50K", 1, 0)
+
+cv_lasso <- cv.glmnet(x, y, alpha = 1, family = "binomial")
+plot(cv_lasso)
+
+cv_lasso$lambda.min
+
+coef(cv_lasso, cv_lasso$lambda.min)
+
+# Final model with lambda.min
+lasso_model <- glmnet(x, y, alpha = 1, family = "binomial",
+                      lambda = cv_lasso$lambda_min)
+# Make prediction on test data
+x_test <- model.matrix(income ~., test_data)[,-1]
+probabilities <- lasso_model %>% predict(newx = x_test)
+lasoo_logistic_predicted_classes <- ifelse(probabilities > 0.5, " >50K", " <=50K")
+# Model accuracy
+mean(lasoo_logistic_predicted_classes == test_data$income)
+```
+
+**Of all the models tested, the full logistic regression is the most accurate.**
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```
+

@@ -1,12 +1,11 @@
 ---
 title: "Week 2 - Data Science II"
 author: "Phileas Dazeley-Gaist"
-date: "04/01/2022"
+date: "11/01/2022"
 theme: cerulean
 output:
   pdf_document:
     highlight: default
-    citation_package: null
     keep_tex: no
     fig_caption: yes
     latex_engine: pdflatex
@@ -15,6 +14,329 @@ geometry: margin=1in
 ---
 
 ```{r setup, include=FALSE}
+# ┏━━━┓╋╋┏┓┏┓╋╋╋╋╋╋╋╋╋╋╋╋╋╋┏━┓╋┏┓┏┓╋╋╋╋╋┏━━━┓┏┓┏┓╋╋╋╋╋╋┏┓
+# ┃┏━┓┃╋╋┃┃┃┃╋╋╋╋╋╋╋╋╋╋╋╋╋╋┃┏┛┏┛┗┫┃╋╋╋╋╋┃┏━┓┣┛┗┫┃╋╋╋╋╋┏┛┗┓
+# ┃┃╋┗╋━━┫┃┃┃┏━━┳━━┳━━┓┏━━┳┛┗┓┗┓┏┫┗━┳━━┓┃┃╋┃┣┓┏┫┃┏━━┳━╋┓┏╋┳━━┓
+# ┃┃╋┏┫┏┓┃┃┃┃┃┃━┫┏┓┃┃━┫┃┏┓┣┓┏┛╋┃┃┃┏┓┃┃━┫┃┗━┛┃┃┃┃┃┃┏┓┃┏┓┫┃┣┫┏━┛
+# ┃┗━┛┃┗┛┃┗┫┗┫┃━┫┗┛┃┃━┫┃┗┛┃┃┃╋╋┃┗┫┃┃┃┃━┫┃┏━┓┃┃┗┫┗┫┏┓┃┃┃┃┗┫┃┗━┓
+# ┗━━━┻━━┻━┻━┻━━┻━┓┣━━┛┗━━┛┗┛╋╋┗━┻┛┗┻━━┛┗┛╋┗┛┗━┻━┻┛┗┻┛┗┻━┻┻━━┛
+# ╋╋╋╋╋╋╋╋╋╋╋╋╋╋┏━┛┃
+# ╋╋╋╋╋╋╋╋╋╋╋╋╋╋┗━━┛       Applied Data Science II - Week 2
+# # ---------------------------------------------------------------
 knitr::opts_chunk$set(echo = TRUE)
+
+library(MASS)
+library(ISLR2)
+library(car)
+library(caret)
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Simple Linear Regression 
+#
+# # ---------------------------------------------------------------
+
+# First, let's check out this Boston data 
+head(Boston)
+
+# Cool...but what do these variables mean? Let's use our ?? command to check it out and see if there's any more info
+??Boston
+
+# So medv is a column that stands for the median value of owner-occupied homes, as measured in $1,000 units. 
+# That could be a good initial variable to check out as a dependent variable. 
+# Let's also check out that variable lstat - "lower status of population". This variable has some unfortunate labeling - 
+# but it basically means "lower socioeconomic status". Let's build a model that sees how well this variable predicts medv. 
+
+# We can use the lm ("linear model") command to build a linear regression:
+
+# lm_fit <- lm(medv ~ lstat)
+
+# why didn't this work? 
+
+?lm
+
+#...ahhh, we forgot to tell it which dataset we were using! 
+
+lm_fit <- lm(medv ~ lstat, data = Boston)
+
+# Let's see what is in this new object we just created
+lm_fit
+
+# That's not super, uh, informative. Let's check it out even further with summary()
+
+summary(lm_fit)
+```
+
+```{r}
+# We can extract stuff from this fitted model fairly easily. 
+
+# ...we can grab the names of all the internal elements if we want:
+names(lm_fit)
+
+# ...and thus call them!
+
+as.data.frame(lm_fit$residuals)
+
+# We can also extract the coefficients super easily
+coef(lm_fit)
+
+# and the confidence intervals! 
+confint(lm_fit)
+
+# most importantly, we can PREDICT stuff very, very easily with this fitted model. 
+# The predict() function can be used to produce confidence intervals and 
+# prediction intervals for the prediction of medv for a given value of lstat.
+
+predict(lm_fit, data.frame(lstat = (c(5, 10, 15))),
+        interval = "confidence")
+
+predict(lm_fit, data.frame(lstat = (c(5, 10, 15))),
+        interval = "prediction")
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# STOP! Your turn. Predict the value of medv for a given lstat value of 8. 
+# Explain the difference
+#
+# # ---------------------------------------------------------------
+
+predict(lm_fit, data.frame(lstat = c(8)))
+
+```
+
+```{r}
+# Let's plot these two variables and add the fitted line! We won't use ggplot2 here at the moment (although you can and should if you know how!),
+# as standard plotting will work okay. 
+
+plot(Boston$lstat, Boston$medv)
+abline(lm_fit, col =) 
+
+# Let's take a peek at some diagnostic plots.
+# Four diagnostic plots are automatically produced by applying the plot() function directly to the output from lm(). In general, this
+# command will produce one plot at a time, and hitting Enter will generate
+# the next plot. However, it is often convenient to view all four plots together.
+# We can achieve this in base R graphics by using the par() and mfrow() functions, which tell R 
+# to split the display screen into separate panels so that multiple plots can
+# be viewed simultaneously. For example, par(mfrow = c(2, 2)) divides the
+# plotting region into a 2 × 2 grid of panels.
+par(mfrow = c(2, 2))
+plot(lm_fit)
+
+# What are these diagnostics? 
+
+#### Residuals vs. Fitted 
+# This plot shows if residuals have non-linear patterns. 
+# There could be a non-linear relationship between predictor variables and an outcome variable and the pattern could 
+# show up in this plot if the model doesn’t capture the non-linear relationship. If you find equally spread residuals 
+# around a horizontal line without distinct patterns, that is a good indication you don’t have non-linear relationships.
+
+#### Normal Q-Q
+# This plot shows if residuals are normally distributed. Do residuals follow a straight line well or do they deviate severely? 
+# It’s good if residuals are lined well on the straight dashed line.
+
+#### Scale-Location
+# It’s also called Spread-Location plot. This plot shows if residuals are spread equally along the ranges of predictors. 
+# This is how you can check the assumption of equal variance (homoscedasticity). It’s good if you see a horizontal line with equally 
+# (randomly) spread points.
+
+#### Residuals vs. Leverage
+# This plot helps us to find influential cases (i.e., subjects) if any. Not all outliers are influential in linear regression analysis 
+# (whatever outliers mean). Even though data have extreme values, they might not be influential to determine a regression line. That means, 
+# the results wouldn’t be much different if we either include or exclude them from analysis. They follow the trend in the majority of cases 
+# and they don’t really matter; they are not influential. On the other hand, some cases could be very influential even if they look to be 
+# within a reasonable range of the values. They could be extreme cases against a regression line and can alter the results if we exclude 
+#them from analysis. Another way to put it is that they don’t get along with the trend in the majority of the cases.
+
+# Unlike the other plots, this time patterns are not relevant. We watch out for outlying values at the upper right corner or at the lower 
+# right corner. Those spots are the places where cases can be influential against a regression line. Look for cases outside of a dashed line, 
+#Cook’s distance. When cases are outside of the Cook’s distance (meaning they have high Cook’s distance scores), the cases are influential to 
+# the regression results. The regression results will be altered if we exclude those cases.
+
+# Let's keep going, so let's turn the plotting function off! 
+dev.off()
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Multiple Linear Regression 
+#
+# # ---------------------------------------------------------------
+
+# Let's add age! 
+lm_fit_multiple <- lm(medv ~ lstat + age, data = Boston)
+summary(lm_fit_multiple)
+
+# Heck, let's add EVERYTHING! 
+lm_fit_multiple <- lm(medv ~ ., data = Boston)
+summary(lm_fit_multiple)
+
+# is this better than our simple model?
+summary(lm_fit)
+
+# We can test if it is SIGNIFICANTLY better with an F-test!
+# Use the anova function, and use the form anova(simpler_model, more complicated_model). 
+# Order matters! 
+anova(lm_fit, lm_fit_multiple)
+
+# We can check if our variables are highly collinear by using the vif()
+# command from the car package. 
+
+vif(lm_fit_multiple)
+
+# A rule of thumb commonly used in practice is if a VIF is > 10, you have high multicollinearity. 
+# In our case, with values around 1-3, we are in good shape, and can proceed with our regression.
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# STOP! Your turn. Generate a model that predicts medv on 
+# the variables crim, age, and tax. Report the Adjusted R-Squared for
+# this model. 
+#
+# # ---------------------------------------------------------------
+
+lm_fit_multiple_2 <- lm(medv ~ crim + age + tax, data = Boston)
+summary(lm_fit)
+
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Interaction terms and non-linear transformations! 
+#
+# # ---------------------------------------------------------------
+
+# Perhaps we sometimes want to add in the interaction effects between variables.
+# You can specify an interaction term by using either the * or : character between variables.
+# : generates JUST the interaction, whereas * generates the whole list (variables + interaction terms)
+
+summary(lm(medv ~ lstat * age, data = Boston))
+
+# The lm() function can also accommodate non-linear transformations of the
+# predictors even though it's building a linear model. For instance, given a predictor X, 
+# we can (for example) create a predictor X^2 using I(X^2). 
+# The function I() is needed since the ^ has a special meaning I() in a formula object; 
+# wrapping as we do allows the standard usage in R,
+# which is to raise X to the power 2. 
+
+# We now perform a regression of medv onto lstat and lstat2.
+lm_fit_fancy <- lm(medv ~ lstat + I(lstat^2), data=Boston)
+summary(lm_fit_fancy)
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# STOP! Your turn. Plot the diagnostics for the model with the quadratic term.
+# Discuss what's different about them. 
+#
+# # ---------------------------------------------------------------
+#
+
+par(mfrow = c(2, 2))
+plot(lm_fit_fancy)
+```
+
+```{r}
+# We can add an arbitrary number of polynomial variables. Let's add a 5th order polynomial! 
+lm_fit5 <- lm(medv ~ poly(lstat, 5), data=Boston)
+summary(lm_fit5)
+
+# We can also take the log of a given variable. If you know me, you know I love logs. 
+summary(lm(medv ~ log(rm), data = Boston))
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Qualitative Predictors 
+#
+# # ---------------------------------------------------------------
+
+#We're going to switch to a different data set now - one about carseats! 
+head(Carseats)
+
+# Let's built a model that fits to every varaible, the interaction effects between Income
+# and Advertising, and the interaction effects between Price and Age. 
+careseats_fit <- lm(Sales ~ . + Income:Advertising + Price:Age, 
+             data = Carseats)
+summary(careseats_fit)
+
+# Notice how each "level" of the variable for ShelveLoc is present except for one? 
+# R has created a ShelveLocGood dummy variable that takes on a value of
+# 1 if the shelving location is good, and 0 otherwise. It has also created a
+# ShelveLocMedium dummy variable that equals 1 if the shelving location is
+# medium, and 0 otherwise. A bad shelving location corresponds to a zero
+# for each of the two dummy variables. The fact that the coefficient for
+# ShelveLocGood in the regression output is positive indicates that a good
+# shelving location is associated with high sales (relative to a bad location).
+# And ShelveLocMedium has a smaller positive coefficient, indicating that a
+# medium shelving location is associated with higher sales than a bad shelving location 
+# but lower sales than a good shelving location.
+
+# You can see that by checking this out:
+contrasts(Carseats$ShelveLoc)
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Let's take a look at manually predicting things and calculating
+# RMSE 
+#
+# # ---------------------------------------------------------------
+
+# Let's make up some pretend observations:
+
+observed <- c(0.22, 0.83, -0.12, 0.89, -0.23, -1.30, -0.15, -1.4,
+              + 0.62, 0.99, -0.18, 0.32, 0.34, -0.30, 0.04, -0.87,
+              + 0.55, -1.30, -1.15, 0.20)
+
+# Now, some pretend predictions:
+
+predicted <- c(0.24, 0.78, -0.66, 0.53, 0.70, -0.75, -0.41, -0.43,
+               + 0.49, 0.79, -1.19, 0.06, 0.75, -0.07, 0.43, -0.42,
+               + -0.25, -0.64, -1.26, -0.07)
+
+# Calculate the residuals: 
+
+residuals <- observed - predicted
+
+# An important step in evaluating the quality of the model is to visualize
+# the results. First, a plot of the observed values against the predicted values
+# helps one to understand how well the model fits. Also, a plot of the residuals
+# versus the predicted values can help uncover systematic patterns in the model
+# predictions. Let's make some plots! 
+
+# this puts things on the same axis
+axis_range <- extendrange(c(observed, predicted))
+par(mfrow = c(1,2))
+# show Predicted vs. Observed
+plot(observed, predicted, 
+     ylim = axis_range, 
+     xlim = axis_range, 
+     ylab = "predicted",
+     xlab = "observed")
+# Add a 45 degree reference line
+abline(0, 1, col = "darkgrey", lty = 2)
+# show predicted values versus residuals
+plot(predicted, residuals, ylab = "residual", xlab = "predicted")
+abline(h = 0, col = "darkgrey", lty = 2)
+
+# turn off the par plot
+dev.off()
+
+# Calculate R2 
+caret::R2(predicted, observed)
+
+# Calculate RMSE 
+caret::RMSE(predicted, observed)
 ```
 

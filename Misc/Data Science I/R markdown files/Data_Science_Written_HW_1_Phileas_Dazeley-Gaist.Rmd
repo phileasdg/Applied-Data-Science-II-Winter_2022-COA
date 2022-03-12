@@ -1,0 +1,288 @@
+---
+title: "Data Science Written HW 1"
+author: "Phileas Dazeley Gaist"
+date: "9/27/2021"
+output: 
+  html_document:
+    df_print: paged
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+# Written Assignment #1
+
+**Collaboratively worked on with Adel Misherghi, Lisa-Marie Kotthoff, and Quint Nigro.**
+
+For this assignment, I elected to prioritise solutions which made use of dplyr, tidyverse, and the %>% operator (which I am mostly new to) over other approaches. Within these constraints, I also chose to prioritise code readability over conciseness, although I attempted to keep my solutions as short as I could without making them too obtuse. 
+
+## Details
+
+- Due Date:
+  * 2021-10-01 (this Friday!) prior to the start of class (i.e., needs to be submitted before 1PM EST).
+- Format: 
+  * You’ll submit this via Google Classroom. It can be in whatever format you like - so long as it uploads!
+- Working Style: 
+  * You can do this individually or as a group - it is entirely up to you! If you do work in groups, please make note in the document that you did so and list everyone’s name.
+
+## Data
+
+Hungry? If you’re not - you’re about to be. We’re going to be diving into a data set about delicious, sugary, probably-pretty-bad-for-you American breakfast cerals!
+
+The context and background of this data can be found [here](https://www.kaggle.com/crawford/80-cereals?select=cereal.csv). You’ll need to look here to see what the columns mean (this is also known as a “data dictionary”).
+
+The data itself can be downloaded from [here](https://www.kaggle.com/crawford/80-cereals/download). If you would like to get the .csv file without having to unzip it, you can grab it from the course github in the /data directory [here](https://github.com/kylescotshank/applied_data_science/tree/master/data).
+
+**Setting things up:**
+
+```{r}
+cereals <- read_csv(url("https://raw.githubusercontent.com/kylescotshank/applied_data_science/master/data/cereal.csv"))
+
+cereals
+```
+
+# Questions
+
+Answer these as thoroughly as you can and please provide the code that you’ve used to generate your answer.
+
+**1.** What are the dimensions of this data set?
+
+**Answer:** The dimensions of this data set are 77 observations by 16 variables, 77 rows by 16 columns.
+
+```{r}
+dim(cereals)
+```
+
+**2.** How many columns in this data set have a character data type?
+
+**Answer:** Three columns from this data set have a character data type.
+
+```{r}
+cereals %>% 
+    select_if(is.character) %>% 
+    ncol()
+```
+
+**3.** Which manufacturer has the most cereals in this data? How many rows of the dataset does this manufacturer represent?
+
+**Answer:** The manufacturer who owns the most cereal brands in these data is Kellogg's, whose data represent 23 rows of the data set. 
+
+```{r}
+cereals %>% 
+  group_by(mfr) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  filter(row_number() == 1)
+```
+
+*or, alternatively*
+
+```{r}
+sort(table(cereals$mfr))[length(table(cereals$mfr))]
+```
+
+**4.** What is the name of the cereal manufactured by American Home Food Products?
+
+**Answer:** The cereal manufactured by American Home Food Products is Maypo.
+
+```{r}
+cereals %>%  
+  filter(mfr == "A" ) %>% 
+  select(name)
+```
+
+**5.** Which three breakfast cereals have the lowest calorie count per serving?
+
+**Answer:** The three breakfast cereals which have the lowest calorie count per serving are
+
+- All-Bran with Extra Fiber,
+- Puffed Rice,
+- Puffed Wheat,
+
+all three of which are tied at 50 calories per serving.
+
+```{r}
+cereals %>% 
+  arrange(calories) %>% 
+  select(name, calories) %>% 
+  filter(row_number() <= 3)
+```
+
+**6.** Which cold breakfast cereal from Quaker Oats has the highest overall rating?
+
+**Answer:** The cold breakfast cereal brand owned by Quaker Oats which has the highest overall rating is Puffed Wheat, with an approximate rating of 63.
+
+```{r}
+cereals %>% 
+  arrange(desc(rating)) %>% 
+  filter(type == "C", mfr == "Q") %>%
+  select(name, rating) %>% 
+  filter(row_number() == 1)
+```
+
+**7.** If you sum the grams of sugar and grams of carbohydrates, which hot cereal brand has the highest combination?
+
+**Answer:** The hot cereal brand which hast the highest combined total grams of sugar and carbohydrates is Nabisco's Cream of Wheat (Quick).
+
+```{r}
+cereals %>% 
+  mutate(sugs.carbs = sugars + carbo) %>% 
+  filter(type == "H") %>% 
+  arrange(desc(sugs.carbs))%>% 
+  select(name) %>% 
+  filter(row_number() == 1)
+```
+
+**8.** How many rows in this data set contain a negative value?
+
+**Answer:** Three rows in this data set contain at least one negative value.
+
+```{r}
+cereals %>% 
+  filter_all(any_vars(. < 0)) %>% # that dot is a self-referential pointer.
+  nrow()
+```
+
+*or, alternatively*
+
+```{r}
+cereals %>% 
+  filter(if_any(where(is.numeric),~.x < 0)) %>% 
+  nrow()
+```
+
+**9.** Which cereal on the 1st display shelf has the highest amount of fiber and the lowest amount of sodium?
+
+**Answer:** The cereal on the first display shelf with the highest amount of fiber and the lowest amount of sodium is Nabisco's Shredded Wheat 'n'Bran, a box (presumably) of which contains 4 grams of dietary fiber, and 0 milligrams of sodium.
+
+```{r}
+cereals %>% 
+  filter(shelf == 1) %>% 
+  arrange(desc(fiber), sodium) %>% 
+  select(name, fiber, sodium) %>% 
+  filter(row_number() == 1)
+```
+
+**10.** What percentage of the cereals in this data set are hot breakfast cereals?
+
+**Answer:** Approximately 3.9 percent of the cereals in this data set are hot breakfast cereals. 
+
+```{r}
+cereals %>% 
+  group_by(type) %>% 
+  summarise(type_counts = n()) %>% 
+  pivot_wider(names_from = type, values_from = type_counts) %>%  # nifty
+  summarise(percentage = 100*(H/(C+H)))
+```
+
+*or, alternatively*
+
+```{r}
+cereals %>% 
+  group_by(type) %>% 
+  summarise(type_counts = n()) %>% 
+  mutate(percentages = 100 * type_counts/sum(type_counts)) %>% 
+  filter(type == "H") %>% 
+  select(type, percentages)
+```
+
+*or, alternatively*
+
+```{r}
+cereals %>% 
+  group_by(type) %>% 
+  summarise(pct = 100 * n() / nrow(cereals)) %>% 
+  filter(type == "H")
+```
+
+**11.** Which shelf has the highest mean (i.e., average) percentage of daily vitamins per serving?
+
+**Answer:** The third shelf has the highest mean percentage of daily vitamins per serving. The mean for the third shelf stands at approximately 44.7 percent of the FDA daily intake recommendation.
+
+```{r}
+cereals %>% 
+  group_by(shelf) %>% 
+  summarise(avg_vit = mean(vitamins)) %>% 
+  arrange(desc(avg_vit)) %>% 
+  mutate(percent_avg_vit = 100 * avg_vit / sum(avg_vit)) %>% 
+  filter(row_number() == 1)
+```
+
+**12.** Which manufacturer has the highest percentage of cereals found on the 3rd shelf?
+
+**Answer:** The manufacturer who owns the highest percentage of the cereal brands found on the third shelf is Kellogg's, whose share of the third shelf cereal brands stands at almost exactly 1/3, or 33.3 percent. 
+
+```{r}
+cereals %>% 
+  filter(shelf == 3) %>% 
+  group_by(mfr) %>% 
+  summarise(mfr_counts = n()) %>% 
+  arrange(desc(mfr_counts)) %>% 
+  mutate(percent_shelf_3 = 100 * mfr_counts / sum(mfr_counts)) %>% 
+  filter(row_number() == 1)
+```
+
+**13.** What is the range between the highest and lowest rating?
+
+**Answer:** The range between the highest and lowest rating is approximately 75.7
+
+```{r}
+cereals %>% 
+  summarise(range = max(rating) - min(rating))
+```
+
+**14.** Which cereal brand has the highest number of grams of fat per calorie?
+
+**Answer:** The cereal brand with the highest number of grams of fat per calories is Quaker Oats' 100% Natural Bran, with approximately 0.04 grams of fat per calorie. 
+
+```{r}
+cereals %>% 
+  mutate(fat_per_cal = fat/calories) %>% 
+  arrange(desc(fat_per_cal)) %>% 
+  filter(row_number() == 1) %>% 
+  select(name, fat_per_cal)
+```
+
+**15.** If you had to guess which of these cereal brands may have had the most data input and/r data collection errors, which one would you guess and why?
+
+**Answer:** My guess is that Quaker Oatmeal is the brand of cereal which faced the most data input and collection errors because it contains the most (impossible) negative numeric values. 
+
+Since the data set is quite small, it is possible to tell at a glance that it does not contain NaN or NA values, so I did not bother running code to check for them. 
+
+```{r}
+cereals %>% 
+  filter_all(any_vars(. < 0)) %>% 
+  select(name | where(is.numeric)) %>% 
+  pivot_longer(-name, names_to = "categories", values_to = "values") %>% 
+  group_by(name) %>% 
+  summarise(n_negatives = sum(values < 0)) %>% 
+  arrange(desc(n_negatives)) %>% 
+  filter(row_number() == 1)
+```
+
+**Bonus question:** which cereal brand has the most number of words in it’s name? To answer this, try taking a peek at the function str_count with ?str_count and see how it works. Just giving the answer to this doesn’t count - showing me a valid command or series of commands that produces it will be worth some extra credit!
+
+**Answer:**
+
+```{r}
+?str_count
+
+cereals %>% 
+  select(name) %>% 
+  mutate(chr_count = str_count(name)) %>% 
+  arrange(desc(chr_count)) %>% 
+  filter(row_number() == 1)
+```
+
+# Additional notes:
+
+```{r}
+# you can use head(n) to return the first n rows of a tibble
+cereals %>% head(3)
+# you can use tail(n) to return the first n rows of a tibble
+cereals %>% tail(3)
+```
+

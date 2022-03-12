@@ -1,0 +1,207 @@
+---
+title: "Data Science Written HW 1"
+author: "Phileas Dazeley Gaist"
+date: "10/11/2021"
+output: 
+  html_document:
+    df_print: paged
+    keep_md: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Written Assignment #2
+
+**Collaboratively worked on with Adel Misherghi and Lisa-Marie Kotthoff.**
+
+## Details
+
+- Due Date:
+  * 2021-10-15 (this Friday!) prior to the start of class (i.e., needs to be submitted before 1PM EST).
+- Format:
+  * You’ll submit this via Google Classroom. Again, it can be in whatever format you like so long as it uploads! Take care if you’re trying to use a Google Doc, however, as the copy/paste function of code seems to be a little funky.
+- Working Style
+  * You can do this individually or as a group - it is entirely up to you! If you do work in groups, please make note in the document that you did so and list everyone’s name.
+
+## Data
+
+Everyone complains about bad drivers - but which state has the worst bad drivers? Let’s explore that question and see if we can find any interesting relationships.
+
+The data and data dictionary/context are available here. You can download the data directly with these commands:
+
+```{r}
+
+library(tidyverse)
+library(broom)
+library(PerformanceAnalytics)
+library(Hmisc)
+data <- read_csv(url("https://raw.githubusercontent.com/fivethirtyeight/data/master/bad-drivers/bad-drivers.csv"))
+data
+
+```
+
+Note: for full credit, you must provide the functions you used to obtain your answers!
+
+## Questions
+
+Answer these as thoroughly as you can and please provide the code that you’ve used to generate your answer.
+
+**1.** Which state(s) has the highest number of drivers involved in fatal collisions per billion miles?
+
+**Answer:** The two states with the highest number of drivers involved in fatal collisions per billion miles are North Dakota and South Carolina.
+
+```{r}
+
+data %>% 
+  arrange(desc(`Number of drivers involved in fatal collisions per billion miles`)) %>% 
+  select(State, `Number of drivers involved in fatal collisions per billion miles`) %>% 
+  head(2)
+
+```
+
+**2** What is the state-level average percentage of drivers involved in fatal collisions who were alcohol-impaired? (Note: remember which of these data elements are US states and which ones are not!)
+
+**Answer:** The mean percentage of drivers involved in fatal collisions who were alcohol-impaired for all US-States is 30.76%.
+
+```{r}
+
+data %>% 
+  filter(State != "District of Columbia") %>% 
+  summarise("mean percentage fatal accident alcohol" = mean(`Percentage Of Drivers Involved In Fatal Collisions Who Were Alcohol-Impaired`))
+
+```
+
+**3** Identify if a given state is above or below the median car insurance premiums from this data set. Now test, using a two-sided t-test, if the average number of drivers involved in fatal collisions per billion miles is different between these two groups. Use a confidence threshold of 90%. Answer the question by referring back to the hypothesis you’re testing.
+
+**Answer:** 
+
+$H_{0}$: There is no statistically significant difference between the mean number of drivers involved in fatal collisions per billion miles in states above ($\overline{A}$) or below ($\overline{B}$) the median state-level car insurance premiums. $\overline{A} = \overline{B}$
+
+$H_{1}$: There is a statistically significant difference between the mean number of drivers involved in fatal collisions per billion miles in states above ($\overline{A}$) or below ($\overline{B}$) the median state-level car insurance premiums. $\overline{A} \neq \overline{B}$
+
+Since the result of a Student's two-tailed T-test shows a T-statistic of 0.34, and a p-value > 0.1 (p = 0.73), we cannot reject $H_{0}$. It is likely that $H_{0}$ is true. 
+
+```{r}
+
+data %>% 
+  filter(State != "District of Columbia") %>% 
+  mutate(premium_group = ifelse(`Car Insurance Premiums ($)` > median(`Car Insurance Premiums ($)`), "above median premiums", "below median premiums")) %>% 
+  do(tidy(t.test(`Number of drivers involved in fatal collisions per billion miles` ~ premium_group, data = ., conf.level = 0.9)))
+
+```
+
+**However,** I note that the results differ when I calculate the median outside of the pipe chain. The results are noticeably different, but not enough to change my conclusions about $H_{0}$ and $H_{1}$ My best guess is that the difference could be due to rounding differences in the way the median is calculated using either approach.
+
+```{r}
+
+median_premiums <- median(data$`Car Insurance Premiums ($)`)
+
+data %>% 
+  filter(State != "District of Columbia") %>% 
+  mutate(premium_group = ifelse(`Car Insurance Premiums ($)` > median_premiums, "above median premiums", "below median premiums")) %>% 
+  do(tidy(t.test(`Number of drivers involved in fatal collisions per billion miles` ~ premium_group, data = ., conf.level = 0.9)))
+
+```
+
+What is odd about this, but not particularly concerning since the null hypothesis was not rejected, is that the T-statistic is positive when using the first approach, and negative when using the second, although their absolute values are quite close to each other for either of the two. 
+
+**4** Compare the average percentage of drivers involved in fatal collisions while speeding between states on the West Coast (including Alaska and Hawaii) to every state on the East Coast (Florida up through Maine) using a t-test. Test if the East Coast drivers have a lower average percentage than West Coast (hint: use a one-sided test!) using a 95% confidence threshold.
+
+**Answer:** 
+
+$H_{0}$: There is no statistically significant difference between the mean percentage of drivers involved in fatal collisions while speeding in states on the east ($\overline{A}$) and west ($\overline{B}$) coasts of the US. $\overline{A} = \overline{B}$
+
+$H_{1}$: The mean percentage of drivers involved in fatal collisions while speeding in states on the east coast of the US ($\overline{A}$) is statistically significantly lower than the mean percentage of drivers involved in fatal collisions while speeding in states on the west coast of the US ($\overline{B}$). $\overline{A} < \overline{B}$
+
+Since the result of a Student's T-test shows a T-statistic of -2.11, and a p-value < 0.05 (p = 0.03), we can reject $H_{0}$ and support $H_{1}$. It is likely that $H_{1}$ is true.
+
+```{r}
+
+west_c_states <- c("Alaska", "Hawaii", "California", "Oregon", "Washington")
+east_c_states <- c("Florida", "Georgia", "South Carolina", "North Carolina", "Virginia", "Maryland", "Delaware", "New Jersey", "New York", "Connecticut", "Rhode Island", "Massachussets", "New Hampshire", "Maine")
+
+coast_data <- data %>% 
+  filter(State %in%  c(west_c_states, east_c_states)) %>% 
+  # Assign groups: West coast = 1, East coast = 2
+  mutate(coast = ifelse(State %in%  west_c_states, "west coast", "east coast"))
+
+coast_data %>% 
+  # Do t-test:
+  do(tidy(t.test(`Percentage Of Drivers Involved In Fatal Collisions Who Were Speeding` ~ coast, alternative="less", data = ., conf.level = 0.95)))
+  
+coast_data %>% 
+  # Let's plot a box plot too just to support the results visually:
+  ggplot(aes(coast, `Percentage Of Drivers Involved In Fatal Collisions Who Were Speeding`)) + geom_boxplot() # I note the outlier in the west coast data.
+
+```
+**Personal note:** While the tidy way of doing t.tests is nice visually, it annoys me that I can't see which estimate is associated with which sample group at a glance. For this, the classic base r t.test is much better.
+
+**5** Is there evidence of a statistically significant correlation between the percentage of drivers involved in fatal collisions who were alcohol impaired and the number of drivers involved in fatal collisions per billion miles? Use a confidence threshold of 90%
+
+**Answer:** 
+
+$H_{0}$: The population correlation coefficient is not significantly different from 0. There is no significant linear relationship between the percentage of drivers involved in fatal collisions who were alcohol impaired and the number of drivers in fatal collisions per billion miles in the population. $\rho = 0$
+
+$H_{1}$: The population correlation coefficient is significantly different from zero. There is a significan linear relationship between the percentage of drivers involved in fatal collisions who were alcohol impaired and the number of drivers in fatal collisions per billion miles in the population. $\rho \neq 0$
+
+Since the result of a Pearson's product-moment correlation shows an r-value of 0.2 and p-value > 0.05 (p = 0.16), we cannot reject $H_{0}$. It is likely that $H_{0}$ is true. There is no evidence of a statistically significant correlation between the percentage of drivers involved in fatal collisions who were alcohol impaired and the number of drivers involved in fatal collisions per billion miles.
+
+```{r}
+
+# We can calculate the correlation between the two variables like so:
+cor.test(data$`Percentage Of Drivers Involved In Fatal Collisions Who Were Alcohol-Impaired`, data$`Number of drivers involved in fatal collisions per billion miles`, alternative = "two.sided", conf.level = 0.9)
+
+```
+
+```{r}
+
+# We can also visualise a scatter plot of the data to confirm results visually:
+data %>% 
+  ggplot(aes(x = `Percentage Of Drivers Involved In Fatal Collisions Who Were Alcohol-Impaired`, y = `Number of drivers involved in fatal collisions per billion miles`)) + 
+  geom_point() +
+  labs(x = "% drivers fatal inv. alcohol", y = "n drivers inv. fatal/billion miles")
+
+```
+
+**6** Examine all of the possible correlations between the numeric variables and reported which variables, if any, are statistically correlated. Make sure you report the correlation coefficient for each pair of variable and that you’re using a confidence threshold of 95% each time.
+
+**Answer:** Of the 21 unique combinations of numeric variables in the data set, only two show significant statistical correlation using a confidence threshold of 95%: 
+
+1. Percentage Of Drivers Involved In Fatal Collisions Who Were Alcohol-Impaired + 	Percentage Of Drivers Involved In Fatal Collisions Who Were Speeding: r = 0.29, p = 0.04
+2. Losses incurred by insurance companies for collisions per insured driver (usd) + 	Car Insurance Premiums (usd): r = 0.62, p < 0.001
+
+The remaining combinations' r and p values can be consulted in the correlation table below.
+
+Code below partially adapted from [this page](http://www.sthda.com/english/wiki/correlation-matrix-a-quick-start-guide-to-analyze-format-and-visualize-a-correlation-matrix-using-r-software#use-chart.correlation-draw-scatter-plots).
+
+```{r}
+
+# Let's plot the data frame to get an idea of where some of the juiciest correlations in the data might lie:
+data_clean <- data %>% 
+  select(-State)
+plot(data_clean)
+
+# Hmm... Hard to see where there potential correlations of interest lie, but we can plot that additional info easily enough: (p-values(0, 0.001, 0.01, 0.05, 0.1, 1) <=> symbols(“***”, “**”, “*”, “.”, " “))
+chart.Correlation(data_clean, histogram = TRUE, pch = 19)
+
+# Let's make a table of all the r and p value results of Pearson's product-moment correlation test for every combination of numeric variables in the data set and display it:
+cor_matrix <- rcorr(as.matrix(data_clean),type="pearson")
+
+lower_triangle <- lower.tri(cor_matrix$r)
+
+correlation_table <- data.frame(
+    var1 = rownames(cor_matrix$r)[row(cor_matrix$r)[lower_triangle]],
+    var2 = rownames(cor_matrix$r)[col(cor_matrix$r)[lower_triangle]],
+    cor  =(cor_matrix$r)[lower_triangle],
+    p = round(cor_matrix$P[lower_triangle], 2)
+    )
+
+correlation_table
+
+# finally, let's filter out all rows with p-values > 0.05
+correlation_table %>% 
+  filter(p<=0.05)
+
+```

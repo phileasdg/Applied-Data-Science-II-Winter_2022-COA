@@ -1,0 +1,223 @@
+---
+title: "week 3 - class 2 - Tidying data - part 2"
+author: "Phileas Dazeley Gaist"
+date: "10/1/2021"
+output: 
+  html_document:
+    df_print: paged
+    keep_md: true
+---
+
+```{r}
+# # ---------------------------------------------------------------
+# ┏━━━┓╋╋┏┓┏┓╋╋╋╋╋╋╋╋╋╋╋╋╋╋┏━┓╋┏┓┏┓╋╋╋╋╋┏━━━┓┏┓┏┓╋╋╋╋╋╋┏┓
+# ┃┏━┓┃╋╋┃┃┃┃╋╋╋╋╋╋╋╋╋╋╋╋╋╋┃┏┛┏┛┗┫┃╋╋╋╋╋┃┏━┓┣┛┗┫┃╋╋╋╋╋┏┛┗┓
+# ┃┃╋┗╋━━┫┃┃┃┏━━┳━━┳━━┓┏━━┳┛┗┓┗┓┏┫┗━┳━━┓┃┃╋┃┣┓┏┫┃┏━━┳━╋┓┏╋┳━━┓
+# ┃┃╋┏┫┏┓┃┃┃┃┃┃━┫┏┓┃┃━┫┃┏┓┣┓┏┛╋┃┃┃┏┓┃┃━┫┃┗━┛┃┃┃┃┃┃┏┓┃┏┓┫┃┣┫┏━┛
+# ┃┗━┛┃┗┛┃┗┫┗┫┃━┫┗┛┃┃━┫┃┗┛┃┃┃╋╋┃┗┫┃┃┃┃━┫┃┏━┓┃┃┗┫┗┫┏┓┃┃┃┃┗┫┃┗━┓
+# ┗━━━┻━━┻━┻━┻━━┻━┓┣━━┛┗━━┛┗┛╋╋┗━┻┛┗┻━━┛┗┛╋┗┛┗━┻━┻┛┗┻┛┗┻━┻┻━━┛
+# ╋╋╋╋╋╋╋╋╋╋╋╋╋╋┏━┛┃
+# ╋╋╋╋╋╋╋╋╋╋╋╋╋╋┗━━┛       Applied Data Science I - Week 3, Class 2
+# # ---------------------------------------------------------------
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**What makes a data set tidy ?**
+
+- Every column in a data set is a variable
+- Every row is an observation
+- Every cell is a distinct element (perfect grid)
+
+Often, "untidy" formats are super simple for data entry and collection. 
+
+You'll use pivot longer a lot to prepare data to plot.
+You'll use pivot wider a lot when you need to prepare data for analysis, tidy things up. 
+
+```{r}
+# Today we are going to learn about just TWO verbs!
+#
+# "pivot_wider" and "pivot_longer"
+# 
+# We're also going to reinforce the tidy data principles - namely, a dataset is tidy IF and ONLY IF: 
+# 
+# Every column is a VARIABLE
+# Every row is an OBSERVATION
+# Every cell is a SINGLE VALUE 
+
+# ---------------------------------------------------------------
+# Verb #1: pivot_longer()
+# ---------------------------------------------------------------
+
+library(tidyverse)
+data("relig_income")
+relig_income
+
+# What makes this dataset untidy?
+# ...
+# ...
+# The column names are are VALUES, not VARIABLES 
+
+# What if I wanted to know how many people identified as agnostic in this dataset? 
+
+sum(relig_income[1,2:11])
+
+# What if I wanted to know how many people identified as agnostic OR atheist but NOT catholic and made at least 75k a year? 
+# ...it would be annoying!
+# So let's tidy this data up! 
+
+relig_income %>% 
+  pivot_longer(!religion, names_to = "income", values_to = "count")
+
+# translation: ignore the religion column, 
+# take all values from every column and make a single column called income with every row containing income values for each religious group.
+# take all count values from the input data set and put them in a single new column called "count" 
+
+# Let's actually answer the question above 
+
+relig_income %>% 
+  pivot_longer(!religion, names_to = 'income', values_to = 'count') %>% 
+  filter(religion != 'Catholic' & religion %in% c('Agnostic','Atheist'),
+         income %in% c('$75-100k','$100-150k')) %>%
+  summarise(count = sum(count))
+```
+
+```{r}
+# ---------------------------------------------------------------
+# Verb #2: pivot_wider
+# ---------------------------------------------------------------
+
+data(us_rent_income)
+us_rent_income
+
+# hmmmm, this is not tidy! Let's tidy it up. 
+
+us_rent_income %>%
+  pivot_wider(names_from = variable, values_from = c(estimate, moe))
+
+# now we can answer questions about it!
+```
+
+```{r}
+# ---------------------------------------------------------------
+# General Tidy Data Practice! 
+# ---------------------------------------------------------------
+
+data(billboard)
+billboard
+
+# Let's clean this up! 
+
+billboard %>% 
+  pivot_longer(
+    wk1:wk76
+  )
+
+billboard %>% 
+  pivot_longer(
+    # this identifies which rows we want to pivot!
+    wk1:wk76, 
+    # this tells us the new name of the column
+    names_to = "week", 
+    # this tells us which values to focus on!
+    values_to = "rank"
+  )
+
+# That's much better! Let's go even a little farther ...
+
+billboard_cleaned <- billboard %>% 
+  pivot_longer(
+    wk1:wk76, 
+    names_to = "week", 
+    values_to = "rank", 
+    values_drop_na = TRUE
+  ) %>% 
+  mutate(
+    # this cleans up the "week" column and turns it into an integer - helpful for ordering! 
+    week = as.integer(gsub("wk", "", week)),
+    # this makes sure that the "date.entered" column becomes a date! 
+    date = as.Date(date.entered) + 7 * (week - 1),
+  ) %>% 
+  # this drops the now unnecessary date column! 
+  select(-date.entered)
+
+# Let's answer a couple of questions about the data:
+
+# Which artists had the best average rank in this data set?
+
+billboard_cleaned %>% 
+  group_by(artist) %>% 
+  summarise(avg_by_artist = mean(rank)) %>% 
+  arrange(avg_by_artist)
+
+# Which artist was in the charts for the longest time?
+
+billboard_cleaned %>% 
+  group_by(artist) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) 
+
+# Which artist has the largest number of songs on the billboard?
+
+billboard_cleaned %>% 
+  group_by(artist, track) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  ungroup() %>% # Yes, you can ungroup things in the tidyverse.
+  group_by(artist) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+
+billboard_cleaned %>% 
+  group_by(artist) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+  
+# How many songs are there by Jay-Z?
+
+billboard_cleaned %>% 
+  filter(artist == "Jay-Z") %>% 
+  select(track) %>% 
+  distinct()
+```
+
+**gsub function:** gsub(pattern, thing you want to replace pattern with, vector of strings that you want to replace things in)
+
+```{r}
+# ---------------------------------------------------------------
+# Let's practice some more! 
+# ---------------------------------------------------------------
+
+devtools::install_github("uc-cfss/rcfss")
+
+library(rcfss)
+
+
+data(grades)
+
+# what's wrong with this dataset? 
+
+# one way to fix it! 
+
+grades %>% 
+  pivot_longer(
+    Fall:Winter,
+    names_to = "Season",
+    values_to = "Score"
+  )
+
+# ahhh, but we still have an issue - we have multiple rows per observation (see row 1 and row 7). One more step! 
+
+grades %>% 
+  pivot_longer(
+    Fall:Winter,
+    names_to = "Season",
+    values_to = "Score"
+  ) %>% 
+  pivot_wider(
+    names_from = Test,
+    values_from = Score
+  )
+```

@@ -1,0 +1,171 @@
+---
+title: "Applied Data Science II - Homework 5"
+author: "Phileas Dazeley Gaist"
+date: "08/02/2021"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+# Libraries 
+
+```{r tidy=TRUE}
+library(tidyverse)
+library(MASS)
+library(nnet)
+library(caret)
+library(glmnet)
+``` 
+
+## 1. ISLR 5.4, Question 5
+
+**a)**
+
+```{r}
+library(ISLR2)
+default <- Default
+head(default)
+
+logit <- glm(default ~ income + balance, data = default, family = binomial(link="logit"))
+summary(logit)
+```
+
+**b)**
+
+```{r}
+set.seed(1)
+
+# split the dataset into training and testing sets
+training_samples <- default$default %>% 
+  createDataPartition(p = 0.8, list = FALSE)
+train_data  <- default[training_samples, ]
+test_data <- default[-training_samples, ]
+
+# check it worked properly
+dim(train_data); dim(test_data)
+
+# Fit a logistic model
+logit <- glm(default ~ income + balance, data = train_data, family = binomial(link="logit"))
+# summary(logit)
+
+# Make predictions for the full model
+logit_pred <- predict(logit, newdata=test_data, "response")
+logit_predicted_classes <- as.factor(ifelse(logit_pred > 0.5, "Yes", "No"))
+
+# Let's make a table
+logit_table <- table(test_data$default, logit_predicted_classes)
+caret::confusionMatrix(logit_table)
+```
+
+**c)**
+
+0.3 split:
+
+```{r}
+set.seed(1)
+
+# split the dataset into training and testing sets
+training_samples <- default$default %>% 
+  createDataPartition(p = 0.3, list = FALSE)
+train_data  <- default[training_samples, ]
+test_data <- default[-training_samples, ]
+
+# Fit a logistic model
+logit <- glm(default ~ income + balance, data = train_data, family = binomial(link="logit"))
+# summary(logit)
+
+# Make predictions for the full model
+logit_pred <- predict(logit, newdata=test_data, "response")
+logit_predicted_classes <- as.factor(ifelse(logit_pred > 0.5, "Yes", "No"))
+
+# Let's make a table
+logit_table <- table(test_data$default, logit_predicted_classes)
+caret::confusionMatrix(logit_table)
+```
+
+0.5 split: 
+
+```{r}
+set.seed(1)
+
+# split the dataset into training and testing sets
+training_samples <- default$default %>% 
+  createDataPartition(p = 0.5, list = FALSE)
+train_data  <- default[training_samples, ]
+test_data <- default[-training_samples, ]
+
+# Fit a logistic model
+logit <- glm(default ~ income + balance, data = train_data, family = binomial(link="logit"))
+# summary(logit)
+
+# Make predictions for the full model
+logit_pred <- predict(logit, newdata=test_data, "response")
+logit_predicted_classes <- as.factor(ifelse(logit_pred > 0.5, "Yes", "No"))
+
+# Let's make a table
+logit_table <- table(test_data$default, logit_predicted_classes)
+caret::confusionMatrix(logit_table)
+```
+
+0.75 split
+
+```{r}
+set.seed(1)
+
+# split the dataset into training and testing sets
+training_samples <- default$default %>% 
+  createDataPartition(p = 0.75, list = FALSE)
+train_data  <- default[training_samples, ]
+test_data <- default[-training_samples, ]
+
+# Fit a logistic model
+logit <- glm(default ~ income + balance, data = train_data, family = binomial(link="logit"))
+# summary(logit)
+
+# Make predictions for the full model
+logit_pred <- predict(logit, newdata=test_data, "response")
+logit_predicted_classes <- as.factor(ifelse(logit_pred > 0.5, "Yes", "No"))
+
+# Let's make a table
+logit_table <- table(test_data$default, logit_predicted_classes)
+caret::confusionMatrix(logit_table)
+```
+
+**d)**
+
+```{r}
+set.seed(1)
+
+# split the dataset into training and testing sets
+training_samples <- default$default %>% 
+  createDataPartition(p = 0.75, list = FALSE)
+train_data  <- default[training_samples, ]
+test_data <- default[-training_samples, ]
+
+# Fit a logistic model
+logit <- glm(default ~ income + balance + as.factor(student), data = train_data, family = binomial(link="logit"))
+# summary(logit)
+
+# Make predictions for the full model
+logit_pred <- predict(logit, newdata=test_data, "response")
+logit_predicted_classes <- as.factor(ifelse(logit_pred > 0.5, "Yes", "No"))
+
+# Let's make a table
+logit_table <- table(test_data$default, logit_predicted_classes)
+caret::confusionMatrix(logit_table)
+```
+
+Adding the dummy variable to the model did not lead to a reduction in test error rate. 
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```
+

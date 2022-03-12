@@ -1,0 +1,516 @@
+---
+title: "Data Science 1: Final project"
+author: "Phileas Dazeley Gaist (they/them)"
+date: "10/23/2021"
+output:
+  html_document:
+    df_print: paged
+    keep_md: true
+bibliography: sources_cited.bib
+nocite: |
+  @*
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(broom)
+library(PerformanceAnalytics)
+library(Hmisc)
+library(ggpubr)
+library(vegan)
+library(robustHD)
+base_dir<-"final datasets/"
+```
+
+# Introduction:
+
+This final project explores INSEE data on markers of social inequalities between women and men. INSEE is the French National Institute for Statistic and Economic Studies. The source data is collected by the French government through the national census, and other government research initiatives. The interest of the French government regarding markers of inequalities between sexes is in the legal sex of French citizens and residents, which in France and French territories, is only recognised officially if it is either male or female. The INSEE data I use here considers for analytical purposes that sex and gender are interchangeable, and refers to the male population as men, and the female population as women. Consequently, the collected data ignores nonbinary-transgender and intersex populations who would not fit within the INSEE's categories, but accounts for binary transgender individuals whose official civility (M. or Mme) as recorded in the census was amended. 
+
+While I personally find that the data would be enriched greatly if the INSEE took account of non-binary categorisations of sex and gender, the INSEE's Director of Social and Demographic Statistics explains that the decision to follow this categorisation is to comply with international recommendations by the UN commission on population and development. She writes "investigation processes must ensure that the margins of uncertainty in the results are not greater than the size of the phenomenon observed", implying that INSEE does not take into account rare phenomena such as intersexuation.
+
+# Nomenclature and explanation of variables:
+
+In this final project, I have chosen to translate and respect the nomenclature used in INSEE's data sets, in part out of concern to produce a simply structured and readable final document, and to avoid making incorrect assumptions about the structure of my data sets, which could lead me to erroneous conclusions about it.  
+
+All numeric variables in this final project's data are expressed as percentages. Numeric variables which record differences in rates of x between women and men will be structures such that observations will take the format: (vaue of x for women - value of x for men)/value of x for men. 
+
+**Variables considered in the data:**
+
+Categorical variables:
+
+- (nominal) Region of France
+- (nominal) Geographic region: Metropolitan France or Overseas territories (DOM)
+- (nominal) socioprofessional designation
+- (ordinal) age group
+
+Continuous quantitative variables:
+
+- Net wage gap (%) between women and men (2017)
+- Total rate of poverty of individuals (%) (2017) (poverty is defined as the state of living under the poverty line: with 60% or less than the median French wage of capital) ^[(“Pauvreté − France, Portrait Social | Insee” n.d.)] 
+- Intensity of poverty of individuals (%) (2017) (intensity of poverty is defined as follows: poverty line - median available capital of the subject living under the poverty line) / poverty line) ^[(“Définition - Intensité de La Pauvreté | Insee” n.d.)]
+- Differences in proportions of employment of women and men (w-m) in positions of authority in local and national government (%) (2021)
+- Average age at first child difference b/w women and men (%) (2019)
+
+# The raw data:
+
+**Source data set 1: French regional sustainable development indicators (INSEE, accessed 11/2021):**
+
+1. Net wage gap between men and women (2017), described by the formula: (f_net_hourly_salary - m_net_hourly_salary)/m_net_hourly_salary.
+
+```{r}
+# By age group: 
+pct_wage_gap_wm_age <- read.csv(paste0(base_dir, "taux ecarts salaire f-h age 2017 FR reg.csv"), sep = ",")
+# By socioprofessional group:
+pct_wage_gap_wm_soc <- read.csv(paste0(base_dir, "taux ecarts salaire f-h soc 2017 FR reg.csv"), sep = ",")
+# Total:
+pct_wage_gap_wm_tot <- read.csv(paste0(base_dir, "taux ecarts salaire f-h total 2017 FR reg.csv"), sep = ",")
+```
+
+2. Total rate of monetary poverty of individuals (2017)
+
+```{r}
+# Total:
+pct.pvt.tot <- read.csv(paste0(base_dir, "taux pvt total 2017 FR reg.csv"), sep = ",")
+```
+
+3. Intensity of poverty (2017)
+
+```{r}
+intens.pvt <- read.csv(paste0(base_dir, "taux intensite pvt 2017 FR reg.csv"), sep = ",")
+```
+
+**Source data set: French regional indicators on inequalities among women and men (INSEE, accessed 11/2021)**
+
+1. Differences in proportions of employment of women and men (w-m) in positions of authority (%) 
+
+```{r}
+life.cond.wm <- read.csv(paste0(base_dir, "taux ecarts cond.vie f-h comparateurs FR reg.csv"), sep=",")
+```
+
+2. Average age at first child difference b/w women and men (%)
+
+```{r}
+health.wm <- read.csv(paste0(base_dir, "taux ecarts sante f-h comparateurs FR reg.csv"), sep=",")
+```
+
+# Cleaned data frames:
+
+I have separated my data into 3 data frames, on each of which I plan to conduct a separate statistical test. 
+
+Data frame 1: 
+
+Variables = region, percent wage gap (2017), age group
+
+```{r}
+# translate the column titles to English
+pct_wage_gap_wm_age <- pct_wage_gap_wm_age %>% 
+  rename(region = libgeo,
+         age_group = "groupe.age",
+         wage_gap_pct = "taux.ecarts.salaire.f.h")
+
+# check for gaps in data:
+# pct_wage_gap_wm_age %>%
+#   filter(is.na(wage_gap_pct))
+
+pct_wage_gap_wm_age <- pct_wage_gap_wm_age %>%
+  # Filter Mayotte out of the data set:
+  filter(region != "Mayotte") %>% 
+  # separate the data into two groups: metropolitan and DOM
+  mutate(geographic_region_group = ifelse(region == "Guadeloupe" | region == "Martinique" | region == "Guyane" | region == "La Réunion", "DOM", "Metropolitan France")) %>% 
+  # translate the wage_gap_pct values to English
+  mutate(age_group = recode(age_group, "25 ans et moins"="25 and lower","26 à 50 ans"="26 to 50","plus de 50 ans"="more than 50"))
+
+pct_wage_gap_wm_age
+```
+Data frame 2:
+
+`Variables = region, percent wage gap (2017), socioprofessional group
+
+```{r}
+# translate the column titles to English
+pct_wage_gap_wm_soc <- pct_wage_gap_wm_soc %>% 
+  rename(region = libgeo,
+         socioprofessional_group = "groupe.socioprofessionel",
+         wage_gap_pct = "taux.ecarts.salaire.f.h")
+
+# check for gaps in data:
+# pct_wage_gap_wm_soc %>%
+#   filter(is.na(wage_gap_pct))
+
+pct_wage_gap_wm_soc <- pct_wage_gap_wm_soc %>%
+  # Filter Mayotte out of the data set:
+  filter(region != "Mayotte") %>% 
+  # separate the data into two groups: metropolitan and DOM
+  mutate(geographic_region_group = ifelse(region == "Guadeloupe" | region == "Martinique" | region == "Guyane" | region == "La Réunion", "DOM", "Metropolitan France")) %>% 
+  # translate the wage_gap_pct values to English
+  mutate(socioprofessional_group = recode(socioprofessional_group, "cadres"="executives","professions intermédiaires"="intermediary positions","employés"="employees", "ouvriers"="workers"))
+
+pct_wage_gap_wm_soc
+```
+Data frame 3:
+
+Variables = region, percent wage gap (2017), rate of monetary poverty (2017), intensity of poverty (2017), percent employment gap between women and men in official positions in French municipalities (2021), average age at first child difference b/w women and men (2019)
+
+```{r}
+# Define the starting data frame for NMDS:
+nmdsData <- data.frame(region = pct_wage_gap_wm_tot$libgeo,
+                       pct_wage_gap = pct_wage_gap_wm_tot$taux.ecarts.salaire.f.h*-1,
+                       monetary_poverty = pct.pvt.tot$total,
+                       poverty_intensity = intens.pvt$total.2017,
+                       ofc_employment_gap = life.cond.wm$conseils.municipaux.2021*-1,
+                       age_first_child_gap_y = health.wm$age.moy.parentalité.années.2019*-1) %>% 
+  filter(region != "Mayotte") %>% 
+  mutate(geographic_region_group = ifelse(region == "Guadeloupe" | region == "Martinique" | region == "Guyane" | region == "La Réunion", "DOM", "Metropolitan France"))
+
+nmdsData
+```
+
+# Data exploration
+
+**In what regions of France was the wage gap between women and men the highest in 2017?**
+
+**Answer:** The regions of Provence-Alpes-Côte d'Azur and Auvergne-Rhône-Alpes had the highest recorded wage gap between women and men in 2017, whith men earning 17.23%, and 17.09% more respectively than women in either region respectively. See the table and bar plot below for a ranking of other regions by wage gap percent.
+
+
+```{r}
+q1 <- nmdsData %>% 
+  select(region, pct_wage_gap) %>% 
+  arrange(desc(pct_wage_gap))
+
+q1
+
+q1 %>% 
+  ggplot(aes(x=reorder(region, pct_wage_gap), y=pct_wage_gap)) +
+  geom_col() +
+  coord_flip() +
+  labs(x="Region", y="Wage gap % (w-m)/m")
+
+rm(q1)
+```
+**Was the wage gap women and men the highest in Metropolitan or Overseas French departments (DOM) on average in 2017?**
+
+**Answer:**  It was highest in Metropolitan France on average, men earning approximately 15.6% more on average than women, vs an approcimately 8.6% difference for French overseas regions. 
+
+```{r}
+q2 <- nmdsData %>% 
+  select(geographic_region_group, pct_wage_gap) %>% 
+  group_by(geographic_region_group) %>% 
+  summarise(pct_wage_gap = mean(pct_wage_gap)) %>% 
+  arrange(desc(pct_wage_gap))
+
+q2
+
+q2 %>% 
+  ggplot(aes(x=geographic_region_group, y=pct_wage_gap)) + 
+  geom_col() +
+  labs(x="Region", y="Wage gap % (w-m)/m")
+
+rm(q2)
+```
+
+**Which regions had the highest rates and intensities of poverty combined in 2017?**
+
+**Answer:** The regions with the highest combined rates of poverty and intensities of poverty are the DOM regions of French Guiana, Reunion island, Guadeloupe, and Martinique island. See the table below for a ranking of other regions by monetary poverty and intensity of poverty.
+
+```{r}
+nmdsData %>% 
+  select(region, monetary_poverty, poverty_intensity) %>% 
+  arrange(desc(monetary_poverty), desc(poverty_intensity))
+```
+
+**Which region had the lowest age at first child gap between women and men in 2019**
+
+**Answer:** The region which had the lowest age at first child gap between women and men in 2019 was Brittany, on the west coast of France (it's my home region). 
+
+```{r}
+nmdsData %>% 
+  select(region, age_first_child_gap_y) %>% 
+  arrange(age_first_child_gap_y) %>% 
+  head(1)
+```
+
+# Analysis:
+
+Okay, enough playing around, let's conduct some tests!!!
+
+**Research question 1:** Is there a difference in the recorded wage gap between women and men in different age groups in 2017 between metropolitan France and the DOM?
+
+- Two way ANOVA 
+  * IVs = regions, age group 
+  * DV = wage gap %
+- Post Hoc test on the results
+- Result reporting and analysis.
+
+Null hypotheses:
+$H_{0_1}$: there is no main effect of geographic region group
+$H_{0_2}$: there is no main effect of age group
+$H_{0_3}$: there is no interaction between geographic region group and age group
+
+Base data frame: `pct_wage_gap_wm_age`
+
+**Visualisation and testing:**
+
+```{r}
+# conduct ANOVA (doing this first makes it really convenient to check that ANOVA assumptions are met)
+aov1 <- aov(wage_gap_pct~geographic_region_group*age_group, data=pct_wage_gap_wm_age)
+summary(aov1)
+
+# conduct a Tukey HSD post-hoc test (we only care about the interaction because it is significant)
+tidy(TukeyHSD(aov1)) %>% 
+  filter(term == "geographic_region_group:age_group") %>% 
+  arrange(adj.p.value)
+```
+
+```{r}
+# retroactively check assumptions of ANOVA are met:
+
+# homogeneity of variance
+plot(aov1, 1) # points 51, 1, and 49 are detected as outliers and could be messing with our results, but I don't really know where to start to find them in the original data set, so I cannot (and should not, since I don't know what they are) remove them
+
+# normality
+plot(aov1, 2)
+```
+
+```{r}
+# plot distribution of wage gap percentages between women and men in France
+hist_1 <- pct_wage_gap_wm_age %>% 
+  ggplot(aes(x=wage_gap_pct)) +
+  geom_histogram(binwidth = 1) + 
+  labs(title="Distribution of net wage gaps \nbetween women and men in France by age", x="Wage gap w-m (%)", y="Frequency", caption="Source: INSEE")
+
+# plot box plot of data frame: 
+boxplot_1 <- pct_wage_gap_wm_age %>% 
+  ggplot(aes(x=age_group, y=wage_gap_pct, colour=geographic_region_group)) +
+  geom_point(position = position_jitterdodge()) +
+  geom_boxplot(fill=NA) + 
+  labs(title="Wage gaps between women and men \nby age groups and geographic region", x="Age group", y="Wage gap w-m (%)", colour="Geographic region", caption = "Source: INSEE")
+
+# plot interaction plot of variables
+interaction_plot_1 <- pct_wage_gap_wm_age %>% 
+  group_by(age_group, geographic_region_group) %>% 
+  summarise(means = mean(wage_gap_pct)) %>% 
+  ggplot(aes(geographic_region_group, means)) +
+  geom_line(size = 1.2, aes(group = age_group, color = age_group)) +
+  geom_point(size = 2.6, aes(color = age_group), shape = 15) +
+  labs(title="Interaction plot of Age groups \nand geographic region groups", x="Geographic region", y="Mean wage gap w-m (%)" , colour="Age", caption="Source: INSEE")
+
+# reveal plots
+hist_1
+boxplot_1
+interaction_plot_1
+
+# report results (see below):
+```
+
+**Results:**
+
+> A two-way ANOVA (table above) revealed a significant effect of geographic region (P < 0.01) and age group (P < 0.01) on wage gap % between women and men, but with a significant interaction between geographic region and age group (P < 0.01). Observations in age group age>50 in Metropolitan France yielded higher wage gap results than expected when compared to the values found in other age group observations. We can reject $H_{0_3}$, but require further research in order to support or reject $H_{0_1}$ and $H_{0_2}$
+
+**Research question 2:** Is there a difference in the recorded wage gap between women and men in different socioprofessional groups in 2017 between metropolitan France and the DOM?
+
+- Two way ANOVA
+  * IVs = regions, socioprofessional group, 
+  * DV = wage gap %
+- Post Hoc test on the results
+- Result reporting and analysis.
+
+Null hypotheses:
+$H_{0_1}$: there is no main effect of geographic region group
+$H_{0_2}$: there is no main effect of socioprofessional designation group
+$H_{0_3}$: there is no interaction between geographic region group and socioprofessional designation group
+
+[Socioprofessional group nomenclature (INSEE, 2013)](https://www.insee.fr/fr/metadonnees/pcs2003/categorieSocioprofessionnelleAgregee/1?champRecherche=true)
+
+Base data frame: `taux.ecarts.salaires.fh.soc`
+
+**Visualisation and testing:**
+
+```{r}
+# conduct ANOVA
+aov2 <- aov(wage_gap_pct~geographic_region_group*socioprofessional_group, data=pct_wage_gap_wm_soc)
+summary(aov2)
+
+# conduct a Tukey HSD post-hoc test (we only care about the interaction because it is significant)
+tidy(TukeyHSD(aov2)) %>% 
+  filter(term == "geographic_region_group:socioprofessional_group") %>% 
+  arrange(adj.p.value)
+```
+
+```{r}
+# retroactively check assumptions of ANOVA are met:
+
+# homogeneity of variance
+plot(aov2, 1) # points 22, 20, and 39 are detected as outliers and could be messing with our results, but I don't really know where to start to find them in the original data set, so I cannot (and should not, since I don't know what they are) remove them
+
+# normality
+plot(aov2, 2)
+```
+
+```{r}
+# plot distribution of wage gap percentages between women and men in France
+hist_2 <- pct_wage_gap_wm_soc %>% 
+  ggplot(aes(x=wage_gap_pct)) +
+  geom_histogram(binwidth = 1) + 
+  labs(title="Distribution of net wage gap \nbetween women and men in France by socioprofessional designation", x="Wage gap w-m (%)", y="Frequency", caption="Source: INSEE")
+
+# sort data frame to display ordered x-axis on boxplot
+pct_wage_gap_wm_soc$socioprofessional_group <- factor(pct_wage_gap_wm_soc$socioprofessional_group, levels=c("executives" , "intermediary positions", "employees", "workers"))
+pct_wage_gap_wm_soc$geographic_region_group <- factor(pct_wage_gap_wm_soc$geographic_region_group, levels=c("Metropolitan France", "DOM"))
+
+# plot box plot of data frame: 
+boxplot_2 <- pct_wage_gap_wm_soc %>% 
+  ggplot(aes(x=socioprofessional_group, y=wage_gap_pct, colour=geographic_region_group)) +
+  geom_point(position = position_jitterdodge()) +
+  geom_boxplot(fill=NA) + 
+  labs(title="Wage gap between women and men \nby socioprofessional designation and geographic region", x="Socioprofessional designation", y="Wage gap w-m (%)", colour="Geographic region", caption = "Source: INSEE")
+
+# add boxplot for executives because it is too small to visualise in the shared boxplot
+boxplot_3 <- pct_wage_gap_wm_soc %>% 
+  filter(socioprofessional_group == "executives") %>% 
+  ggplot(aes(x=socioprofessional_group, y=wage_gap_pct, colour=geographic_region_group)) +
+  geom_point(position = position_jitterdodge()) +
+  geom_boxplot(fill=NA) +
+  labs(title="Wage gap between women and men who are \nexecutives by geographic region", x="Socioprofessional designation", y="Wage gap w-m (%)", colour="Geographic region", caption="Source: INSEE")
+
+# plot interaction plot of variables
+
+interaction_plot_2 <- pct_wage_gap_wm_soc %>% 
+  group_by(socioprofessional_group, geographic_region_group) %>% 
+  summarise(means = mean(wage_gap_pct)) %>% 
+  ggplot(aes(geographic_region_group, means)) +
+  geom_line(size = 1.2, aes(group = socioprofessional_group, color = socioprofessional_group)) +
+  geom_point(size = 2.6, aes(color = socioprofessional_group), shape = 15) +
+  labs(title="Interaction plot of Socioprofessional groups \nand geographic region groups", x="Geographic region", y="Mean wage gap w-m (%)" , colour="Age", caption="Source: INSEE")
+
+# reveal plots
+hist_2
+boxplot_2
+boxplot_3
+interaction_plot_2
+
+# report results (see below)
+```
+
+### Results:
+
+>A two-way ANOVA (table above) revealed a significant effect of socioprofessional group (P < 0.01) but not geographic region (P = 0.28) on wage gap % between women and men, but with a significant interaction between geographic region and socioprofessional group (P < 0.01). In Metropolitan France, observations of workers showed yielded lower wage gap values when compared to DOM observations, for employees and intermediary positions the effect was reversed." We can reject $H_{0_3}$, but require further research in order to support or reject $H_{0_1}$ and $H_{0_2}$
+
+# Test 3: Non-Metric Multidimensional Scaling (NMDS) ordination:
+
+Okay, you caught me, this isn't really a statistical test, its an ordination, but it felt much too important and complicated to put in the data exploration section of this document, so I'm sure you'll understand my decision to put it here. 
+
+NMDS is an approach to ordination which uses an iterative approach to avoid making any assumptions of linearity of relationships between variables and observations in the data. It produces an ordination space in n-dimensions by maximising the Spearman's rank correlation (which is the nonparametric equivalent to Pearson's R) between the distances in the starting - real world - observations and variables, and the observations in ordination space.^[(Matthew E. Clapham 2016)]
+
+In this NMDS, I'll be using geographic region groups as different observations, and rates (%) of total monetary poverty, intensity of poverty, net wage gap (absolute values), total employemt rate gap in official municipality poistions (%), and number of years gap between average ages at fist chile for women and men (y)] as variable vectors (bubbles would be metropolitan France and the DOM).
+
+While I'm at it, here's an excellent resource to understand NMDS: [good NMDS resource](https://www.youtube.com/watch?v=Kl49qI3XJKY)
+
+```{r}
+# data sets to use (variables cols ~ region rows):
+# - total wage gap % ((w-m)*-1) <- important
+# - total monetary poverty %
+# - total intensity of poverty %
+# - total employment rate gap in official municipal positions % ((w-m)*-1)
+# - n year gap between average ages at first child for women and men (y) ((w-m)*-1)  
+
+# multiplications by -1 made so that higher values are equated to larger imbalances disfavouring women. 
+
+nmdsData
+```
+
+```{r}
+# convert data frame to matrix (+ maybe assign region names to rows)
+nmdsMatrix <- as.matrix(standardize(nmdsData[, 2:6]))
+rownames(nmdsMatrix) <- nmdsData$region
+
+# shift minimums so that all values are positive (see http://strata.uga.edu/8370/lecturenotes/multidimensionalScaling.html)
+minShift <- function(x) {x + abs(min(x))}
+nmdsMatrix <- apply(nmdsMatrix, 2, minShift)
+
+(data.frame(nmdsMatrix))
+```
+
+```{r}
+# run MDS (also calculates euclidean distance matrix)
+my.nmds <- metaMDS(nmdsMatrix, distance='euclidean', k=2, trymax=50)
+
+# GOF and Shepards diagram
+goodness(my.nmds) # Produces a results of test statistics for goodness of fit for each point
+stressplot(my.nmds) # Produces a Shepards diagram
+
+# results
+my.nmds
+
+# Plotting points in ordination space
+plot(my.nmds, "sites", xlim=c(-6,2.5))   # Produces distance 
+orditorp(my.nmds, "sites") # Gives points labels
+
+# Variable scores plot
+# https://www.burns-stat.com/plot-ranges-of-data-in-r/
+# https://rpubs.com/CPEL/nmds
+
+variableScores <- my.nmds$species
+sampleScores <- my.nmds$points
+
+DOM3 <- nmdsData$geographic_region_group == "DOM"
+metro3 <- nmdsData$geographic_region_group == "Metropolitan France"
+
+# combined data plot
+
+colvec <- c("seagreen", "royalblue")   # Identifies colors for group assignments
+pchvec <- c(22, 22)   # Identifies character symbols for group assignments
+
+plot(my.nmds, xlim=c(-6,2.5))
+with(nmdsData,
+     points(my.nmds,
+            display = "sites",
+            col = "black",
+            pch = pchvec[geographic_region_group],
+            bg = colvec[geographic_region_group]))
+
+#Create convex hulls that highlight point clusters based on grouping dataframe
+ordihull(
+  my.nmds,
+  nmdsData$geographic_region_group,
+  display = "sites",
+  draw = c("polygon"),
+  col = NULL,
+  border = c("gray0", "gray0", "gray48", "gray48"),
+  lty = c(1, 2, 1, 2),
+  lwd = 2.5
+)
+
+# Calculating and plotting centroids of NMDS Result
+scrs <-
+  scores(my.nmds, display = "sites", "species")
+cent <-
+  aggregate(scrs ~ geographic_region_group, data = nmdsData, FUN = "mean")
+names(cent) [-1] <- colnames(scrs)
+points(cent [,-1],
+       pch = c(8, 8),
+       col = c("seagreen", "royalblue"),
+       bg = c("black"),
+       lwd = 3.0,
+       cex = 2.0 # Plots centroids as points on ordination
+)
+
+# variable scores
+text(-3.3, -1, 'DOM', col='seagreen')
+text(-.35, -1, 'Metropolitan France', col='royalblue')
+
+arrows(0, 0, variableScores[, 1], variableScores[, 2], length=0.1, angle=20)
+
+textNudge <- 1.2
+text(variableScores[, 1]*textNudge, variableScores[, 2]*textNudge, rownames(variableScores), cex=0.7)
+
+# legend
+legend("topleft",
+       col = c("seagreen", "royalblue"),
+       lty = 1,
+       legend = c("DOM", "Metropolitan France"),
+       cex=0.7)
+```
+
+# Bibliography:
+

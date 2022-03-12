@@ -1,0 +1,270 @@
+---
+title: "Week 7 - Data Science II"
+author: "Phileas Dazeley-Gaist"
+date: "15/02/2022"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+```{r}
+# Applied Data Science II - Week 7
+# # ---------------------------------------------------------------
+
+# Today we are going to talk about TREES! 
+#
+#
+# # ---------------------------------------------------------------
+#
+# Load your libraries! 
+#
+# # ---------------------------------------------------------------
+
+library(ISLR2)
+library(tidyverse)
+library(caret)
+library(nnet)
+library(randomForest)
+library(lubridate)
+library(xgboost)
+library(mgcv)
+library(janitor)
+# do these not work? Then you'll have to install them! 
+
+# You  might need some new commands to install this! 
+# if you can just run install.packages(c("randomForest","xgboost","janitor")), try this: 
+# 
+# urlPackage <- "https://cran.r-project.org/src/contrib/Archive/randomForest/randomForest_4.6-12.tar.gz"
+# install.packages(urlPackage, repos=NULL)
+#
+# if this doesn't work - you need to download the newest version of R 
+# and then update RStudio.
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Lets build a Random Forest with our Spotify Data! 
+#
+# # ---------------------------------------------------------------
+
+# go ahead and grab that spotify data again. 
+
+spotify_data <- read_csv("w7 data/spotify_labels.csv")
+
+# clean it up with this procedure:
+
+cleaned_spotify <- spotify_data %>% 
+        select(-artist_name,key) %>% 
+        mutate(mode = as.factor(mode),
+               key = as.factor(key),
+               time_signature = as.factor(time_signature),
+               label = as.factor(label))
+              
+
+# let's build a test and training split of 80%/20% 
+
+indx <- createDataPartition(cleaned_spotify$label, p = 0.75, list = FALSE)
+train <- cleaned_spotify[indx,]
+test <- cleaned_spotify[-indx,]
+
+# alrighty - go ahead and build yourself a tree!
+# sit back, relax, and grab a cup of coffee...
+random_forest_model <- train(label ~ .,
+                             data = train,
+                             method='rf',
+                             metric='Accuracy',
+                             trControl = trainControl(method = 'cv', number = 10))
+
+# and now we wait! 
+
+random_forest_model
+
+# let's assess the model accuracy! 
+
+random_forest_pred <- predict(random_forest_model, test)
+confusionMatrix(random_forest_pred, test$label)
+
+# let's quickly compare that to the logistic model .... 
+  
+multi_class_logit <- nnet::multinom(label ~ ., data = train)
+logit_pred <- predict(multi_class_logit, test)
+confusionMatrix(logit_pred, test$label)
+
+# looks like randomForest is better out of the box! let's visualize what's going on. 
+
+plot(random_forest_model)
+
+# this gives you an idea of how your training accuracy changes over a randomly selected number of trees
+# maybe you want to know which features matter most?
+
+plot(varImp(random_forest_model, scale = TRUE))
+
+# ahhh, interesting! we see which variables mattered most here. 
+
+# # ---------------------------------------------------------------
+#
+# Stop! Go back to the presentation
+#
+# # ---------------------------------------------------------------
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Lets build an XGBoost model! 
+#
+# # ---------------------------------------------------------------
+
+# we're going to revisit the walmart data from last week! 
+# load it in from the Google Drive and prepare it as below:
+
+walmart <- read_csv("w7 data/walmart.csv")
+
+walmart_cleaned <- walmart %>% 
+  mutate(store = as.factor(store),
+         holiday_flag = as.factor(holiday_flag),
+         year = as.factor(year(dmy(date))),
+         month = as.factor(month(date))) %>%
+  select(-c(date))
+
+
+index <- createDataPartition(walmart_cleaned$weekly_sales, p = .8, list=FALSE)
+training_data <- walmart_cleaned[ index,]
+test_data  <- walmart_cleaned[-index,]
+
+
+# now, let's build an xgboost model! 
+# XGBoost requires your data to be entirely numerical, so let's convert it! 
+
+X_prep_train <- training_data %>% dplyr::select(-weekly_sales)
+X_prep_train
+X_prep_test <- test_data %>% dplyr::select(-weekly_sales)
+X_train = model.matrix(~.-1, data = X_prep_train)
+y_train = training_data$weekly_sales
+X_test = model.matrix(~.-1, data = X_prep_test)
+y_test = test_data$weekly_sales
+
+
+# here we go! 
+
+xgboost_model <- train(
+  x = X_train,
+  y = y_train,
+  method = "xgbTree",
+  trControl = trainControl(method = 'cv', number = 10),
+  verbosity = 0
+)
+
+# let's peek...
+
+xgboost_model
+
+# let's assess the model fit with RMSE...
+
+predicted = predict(xgboost_model, X_test)
+residuals = y_test - predicted
+(RMSE = sqrt(mean(residuals^2)))
+
+# and we can even manually calculate an R2!
+
+y_test_mean = mean(y_test)
+# Calculate total sum of squares
+tss =  sum((y_test - y_test_mean)^2 )
+# Calculate residual sum of squares
+rss =  sum(residuals^2)
+# Calculate R-squared
+(rsq  =  1 - (rss/tss))
+
+# let's compare this to what we did last week...
+
+gams_model <- gam(weekly_sales ~ store + holiday_flag + 
+                       s(temperature) +  
+                       s(fuel_price) + s(cpi) + s(unemployment) + 
+                       year + month, data = training_data)
+
+predictions_gam <- predict(gams_model, test_data)
+residuals_gam <- y_test - predictions_gam
+RMSE(predictions_gam, test_data$weekly_sales)
+
+# and our model r2...
+
+rss_gam =  sum(residuals_gam^2)
+1 - (rss_gam/tss)
+
+# # ---------------------------------------------------------------
+#
+# Stop! Go back to the presentation! 
+#
+# # ---------------------------------------------------------------
+```
+
+```{r}
+# # ---------------------------------------------------------------
+#
+# Your turn! 
+#
+# # ---------------------------------------------------------------
+
+# One thing tends to unite us COA weirdos: we're all fascinated by mushrooms! 
+# Upside: yummy! Downside: they can kill you.
+# Your job is to build a model that can differentiate between poisonous and edible ones. :) 
+# Open up the mushrooms.csv file on the Google Drive. 
+# You must use the following code to generate your test/training split. After that, it's up to you
+# how you build the model. Best accuracy wins! 
+# If you need definitions of the dataset, check it out here: 
+# http://archive.ics.uci.edu/ml/datasets/Mushroom
+
+
+mushrooms <- read.csv("w7 data/mushrooms.csv")
+
+# pre-cleaning this for you :) 
+mushrooms_cleaned <- mushrooms %>%
+  clean_names() %>% 
+  na.omit() %>%
+  mutate_if(is.character, as.factor) %>% 
+  select(-c(bruises, gill_attachment, veil_type))
+
+head(mushrooms)
+
+set.seed(12345)
+mushroom_index <- createDataPartition(mushrooms_cleaned$class, p = .7, list=FALSE)
+mushroom_training <- mushrooms_cleaned[ mushroom_index,]
+mushroom_testing  <- mushrooms_cleaned[-mushroom_index,]
+
+
+# now, let's build an xgboost model! 
+# XGBoost requires your data to be entirely numerical, so let's convert it! 
+
+X_prep_train <- mushroom_training %>% dplyr::select(-class)
+X_prep_test <- mushroom_testing %>% dplyr::select(-class)
+X_train = model.matrix(~.-1, data = X_prep_train)
+y_train = mushroom_training$class
+X_test = model.matrix(~.-1, data = X_prep_test)
+y_test = mushroom_testing$class
+
+# here we go! 
+
+xgboost_model <- train(
+  x = X_train,
+  y = y_train,
+  method = "xgbTree",
+  trControl = trainControl(method = 'cv', number = 10),
+  verbosity = 0
+)
+
+# let's peek...
+
+xgboost_model
+
+# let's assess the model accuracy
+xgboost_model_pred <- predict(xgboost_model, X_test)
+confusionMatrix(xgboost_model_pred, y_test)
+```
+

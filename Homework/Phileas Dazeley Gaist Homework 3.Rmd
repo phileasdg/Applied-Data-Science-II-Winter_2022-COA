@@ -1,0 +1,408 @@
+---
+title: "Applied Data Science II - Homework 3"
+author: "Phileas Dazeley Gaist"
+date: "22/01/2021"
+theme: cerulean
+output:
+  pdf_document:
+    highlight: default
+    keep_tex: no
+    fig_caption: yes
+    latex_engine: pdflatex
+fontsize: 11pt
+geometry: margin=1in
+---
+
+**ISLR 6.6: Questions 9, 11**
+
+# Libraries 
+
+```{r tidy=TRUE}
+library(tidyverse)
+library(leaps) 
+library(glmnet)
+library(caret)
+library(pls)
+library(ISLR2)
+``` 
+
+## 1. ISLR 6.6 - 9
+
+**a)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# prepare data
+head(College)
+College <- na.omit(College)
+
+rownames(College) <- College$X
+College = College[,-1] # remove original College names column
+
+set.seed(1)
+
+# split data into testing and training sets:
+train_size = dim(College)[1] / 2 #  half the number of rows in the College set
+
+train = sample(1:dim(College)[1], train_size) # training sample indices
+test = -train # testing sample indices ('-' means 'exclude')
+
+# create training set from subset of College data set at the training indices
+College_train = College[train, ]
+# create testing set from subset of College data set at the testing indices
+College_test = College[test, ] 
+```
+
+Generally speaking, how should I decide on the proportions the testing and training sets should represent from the original data set/the ratio of training to testing data? Also, shouldn't we cross validate for lots of different training and testing sets to make sure that our model is more generally applicable to the data? - Is there then a higher risk of overfitting? I imagine some balance must be struck, I would love to know more about how that balance should be reached.
+
+**b)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+lm_fit = lm(Apps~., data=College_train) # fit lm
+lm_pred = predict(lm_fit, College_test) # predict test using lm fit
+
+mean((College_test[, "Apps"] - lm_pred)^2) # test mean squared error
+```
+
+**c)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+train_matrix <- model.matrix(Apps ~ ., data = College_train) # generate training matrix
+test_matrix <- model.matrix(Apps ~ ., data = College_test) # generate testing matrix
+
+grid <- 10 ^ seq(10, -2, length = 100) # values of lambda to try ridge regression with
+```
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# fit ridge regression models using values of lambda specified in grid
+ridge_fit <- glmnet(train_matrix, College_train$Apps, alpha = 0, lambda = grid, thresh = 1e-12)
+# cross validate the regression models cv.glmnet
+cv_ridge <- cv.glmnet(train_matrix, College_train$Apps, alpha = 0, lambda = grid, thresh = 1e-12)
+# get the best value of lambda from the results of the cross validation
+bestlam_ridge <- cv_ridge$lambda.min
+bestlam_ridge
+
+# using the best value of lambda, predict values in the test set using the 
+# corresponding model in ridge_fit
+# note: this uses the predict function from the glmnet library, not the base r one
+pred_ridge <- predict(ridge_fit, s = bestlam_ridge, newx = test_matrix)
+mean((pred_ridge - College_test$Apps)^2) # mean squared error
+
+# get coefficient estimates
+predict(ridge_fit, s = bestlam_ridge, type = "coefficients")
+```
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# alternative using caret with 10-fold cross validation
+# instructions found at http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/153-penalized-regression-essentials-ridge-lasso-elastic-net/#using-caret-package
+
+set.seed(1)
+ridge <- train(Apps~., data = College_train,
+               method = "glmnet",
+               trControl = trainControl(
+                 method = "cv", number = 10,
+                 verboseIter = F
+               ),
+               tuneGrid = expand.grid(alpha = 0, lambda = grid))
+
+# Model coefficients
+coef(ridge$finalModel, ridge$bestTune$lambda)
+# Make predictions
+predictions <- ridge %>% predict(College_test)
+# Model prediction performance
+
+# return selected model metrics
+data.frame(
+  RMSE = RMSE(predictions, College_test$Apps),
+  Rsquare = caret::R2(predictions, College_test$Apps)
+)
+```
+One thing I don't understand about the approach above using caret versus the other approach used in class is how the approach we used in class determines the type of cross validation. Where are the cross validation parameters specified in the non-caret approach? 
+
+I imagine the reason I have different results for the regressions using caret and not using caret is that my specified cross validation settings using caret are not the same as those using the other method, but I have no idea how to see what's going on and where those settings are. Could you help clarify this for me?
+
+**d)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# same procedure as for ridge regression
+lasso_fit <- glmnet(train_matrix, College_train$Apps, alpha = 1, lambda = grid, thresh = 1e-12)
+cv_lasso <- cv.glmnet(train_matrix, College_train$Apps, alpha = 1, lambda = grid, thresh = 1e-12)
+
+bestlam_lasso <- cv_lasso$lambda.min
+bestlam_lasso
+
+pred_lasso <- predict(lasso_fit, s = bestlam_lasso, newx = test_matrix)
+mean((pred_lasso - College_test$Apps)^2)
+
+# get coefficient estimates:
+predict(lasso_fit, s = bestlam_lasso, type = "coefficients")
+```
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# alternative using caret with 10-fold cross validation
+
+set.seed(1)
+lasso <- train(Apps~., data = College_train,
+               method = "glmnet",
+               trControl = trainControl(
+                 method = "cv", number = 10,
+                 verboseIter = F
+               ),
+               tuneGrid = expand.grid(alpha = 1, lambda = grid))
+
+# Model coefficients
+coef(lasso$finalModel, ridge$bestTune$lambda)
+# Make predictions
+predictions <- lasso %>% predict(College_test)
+# Model prediction performance
+
+# return selected model metrics
+data.frame(
+  RMSE = RMSE(predictions, College_test$Apps),
+  Rsquare = caret::R2(predictions, College_test$Apps)
+)
+```
+
+**e)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+pcr_fit <- pcr(Apps ~ ., data = College_train, scale = TRUE, validation = "CV")
+validationplot(pcr_fit, val.type = "MSEP")
+# summary(pcr_fit)
+
+pcr_pred <- predict(pcr_fit, College_test, ncomp = 10) 
+# ncomp could also be lower if the number of components is a concern
+mean((pcr_pred - College_test$Apps)^2)
+
+pcr_fit <- pcr(Apps ~ ., data = College, scale = TRUE, ncomp = 10)
+summary(pcr_fit)
+```
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# alternative using caret with 10-fold cross validation
+# solution found at http://www.sthda.com/english/articles/37-model-selection-essentials-in-r/152-principal-component-and-partial-least-squares-regression-essentials/#principal-component-regression
+
+# Build the model on training set
+set.seed(1)
+pcr <- train(
+  Apps~., data = College_train, method = "pcr",
+  scale = TRUE,
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 10
+  )
+
+# Plot model RMSE vs different values of components
+plot(pcr)
+# Print the best tuning parameter ncomp that
+# minimize the cross-validation error, RMSE
+pcr$bestTune
+
+# Summarize the final model
+summary(pcr$finalModel)
+
+# Make predictions
+predictions <- pcr %>% predict(College_test)
+# Model performance metrics
+data.frame(
+  RMSE = caret::RMSE(predictions, College_test$Apps),
+  Rsquare = caret::R2(predictions, College_test$Apps)
+)
+```
+
+**f)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+pls_fit <- plsr(Apps ~ ., data = College_train, scale = TRUE, validation = "CV")
+validationplot(pls_fit, val.type = "MSEP")
+
+pls_pred <- predict(pls_fit, College_test, ncomp = 4)
+mean((pls_pred - College_test$Apps)^2)
+```
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# alternative using caret with 10-fold cross validation
+
+# Build the model on training set
+set.seed(1)
+pls <- train(
+  Apps~., data = College_train, method = "pls",
+  scale = TRUE,
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 10
+  )
+# Plot model RMSE vs different values of components
+plot(pls)
+# Print the best tuning parameter ncomp that
+# minimize the cross-validation error, RMSE
+pls$bestTune
+
+# Summarize the final model
+summary(pls$finalModel)
+
+# Make predictions
+predictions <- pls %>% predict(College_test)
+# Model performance metrics
+data.frame(
+  RMSE = caret::RMSE(predictions, College_test$Apps),
+  Rsquare = caret::R2(predictions, College_test$Apps)
+)
+```
+
+**g)**
+
+There isn't much difference between the test errors resulting from the five approaches, but the differences might still affect the fits of the models enough that we might want to choose one over the others. I generally prefer to visualise the linear regressions to make a judgement, but using just the MSE values, I can estimate that pcr and pls result in worse linear model fits than the other approaches. 
+
+| Model | MSE values |
+|-------|------------|
+| lm    | 1162789    |
+| ridge | 1162744    |
+| lasso | 1162684    |
+| pcr   | 1723911    |
+| pls   | 1456872    |
+
+## 2. ISLR 6.6 - 11
+
+**a)**
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+Boston <- na.omit(Boston)
+head(Boston)
+set.seed(1)
+
+# split data into testing and training sets:
+train_size = dim(Boston)[1] / 2 
+train = sample(1:dim(Boston)[1], train_size) 
+test = -train 
+Boston_train = Boston[train, ]
+Boston_test = Boston[test, ]
+```
+
+Accounting for adjusted $R^2$, best subset selection suggests using an 8 variable linear model (excluding cas, rm, age, and tax).
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# best subset selection (exhaustive)
+regfit_full <- regsubsets(crim ~ ., data = Boston_train, nvmax = 12)
+reg_summary <- summary(regfit_full)
+reg_summary
+
+plot_metrics <- data.frame(rss = reg_summary$rss, adjr2 = reg_summary$adjr2, numvar = 1:12)
+plot_metrics %>% filter(adjr2 == max(adjr2))
+
+plot_metrics %>% 
+        ggplot(aes(y = rss, x = numvar)) + 
+        geom_point() + 
+        geom_line() + 
+        xlab("Number of Variables") + ylab("RSS") + 
+        theme_bw() + 
+        ggtitle("RSS for addition of each variable")
+
+plot_metrics %>% 
+        ggplot(aes(y = adjr2, x = numvar)) + 
+        geom_point() + 
+        geom_line() + 
+        xlab("Number of Variables") + ylab("Adjusted R2") + 
+        theme_bw() + 
+        ggtitle("Adjusted R2 for addition of each variable")
+```
+Ridge regression with 10-fold cross validation suggests a model using $\lambda = 0.869749$. 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+grid <- 10 ^ seq(10, -2, length = 100) # values of lambda to try
+
+# ridge regression
+ridge <- train(crim~., data = Boston_train,
+               method = "glmnet",
+               trControl = trainControl(
+                 method = "cv", number = 10,
+                 verboseIter = F
+               ),
+               tuneGrid = expand.grid(alpha = 0, lambda = grid))
+
+# suggested lambda
+ridge$bestTune$lambda
+
+# Model coefficients
+coef(ridge$finalModel, ridge$bestTune$lambda)
+# Make predictions
+predictions <- ridge %>% predict(Boston_test)
+# Model prediction performance
+
+# return selected model metrics
+data.frame(
+  RMSE = RMSE(predictions, Boston_test$crim),
+  Rsquare = caret::R2(predictions, Boston_test$crim)
+)
+```
+
+Ridge regression with 10-fold cross validation suggests a model using $\lambda = 0.09326033$. 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# lasso regression 
+lasso <- train(crim~., data = Boston_train,
+               method = "glmnet",
+               trControl = trainControl(
+                 method = "cv", number = 10,
+                 verboseIter = F
+               ),
+               tuneGrid = expand.grid(alpha = 1, lambda = grid))
+
+# suggested lambda
+lasso$bestTune$lambda
+
+# Model coefficients
+coef(lasso$finalModel, ridge$bestTune$lambda)
+# Make predictions
+predictions <- lasso %>% predict(Boston_test)
+# Model prediction performance
+
+# return selected model metrics
+data.frame(
+  RMSE = RMSE(predictions, Boston_test$crim),
+  Rsquare = caret::R2(predictions, Boston_test$crim)
+)
+```
+The principal component regression with 10-fold cross validation suggests that there is no advantage to dimension reduction in this case. 
+
+```{r tidy = TRUE, message = FALSE, warning = FALSE, error = FALSE}
+# principal component regression
+
+# Build the model on training set
+set.seed(1)
+pcr <- train(
+  crim~., data = Boston_train, method = "pcr",
+  scale = TRUE,
+  trControl = trainControl("cv", number = 10),
+  tuneLength = 13
+  )
+
+# Plot model RMSE vs different values of components
+plot(pcr)
+# Print the best tuning parameter ncomp that
+# minimize the cross-validation error, RMSE
+pcr$bestTune
+
+# Summarize the final model
+summary(pcr$finalModel)
+
+# Make predictions
+predictions <- pcr %>% predict(Boston_test)
+# Model performance metrics
+data.frame(
+  RMSE = caret::RMSE(predictions, Boston_test$crim),
+  Rsquare = caret::R2(predictions, Boston_test$crim)
+)
+```
+
+**b)**
+
+The best performing model we have completed so far is the eight predictor linear model suggested by best subset selection. Its adjusted test $R^2$ is higher than the test $R^2$ values of all the other models tested in this exercise. 
+
+**c)**
+
+No, the model suggested by best subset selection has only eight predictors. I chose it due to its test adjusted $R^2$, which is higher than the test $R^2$ values of the other proposed models.
+
+# Session Info
+
+```{r sessionInfo}
+sessionInfo()
+```
+
